@@ -1,0 +1,1 @@
+"""Library for use of Spotify API"""
