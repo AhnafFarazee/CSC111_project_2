@@ -25,11 +25,6 @@ class Track:
     popularity: int
     duration_ms: int
     explicit: bool
-    track_profile: dict[str, float]
-    key: int
-    mode: int
-    tempo: float
-    time_signature: int
     track_genre: str
 
     def euclid_distance(self, comparison_track: Track) -> float:
@@ -112,7 +107,7 @@ class Queue:
         """Return length of Queue"""
         return len(self._items)
 
-    def is_empty(self) -> Bool:
+    def is_empty(self) -> bool:
         """Return whether this queue contains no items"""
         return self._items == []
     

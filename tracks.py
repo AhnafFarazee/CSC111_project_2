@@ -1,9 +1,10 @@
 """
 Includes functions for finding tracks.
 """
-
+from __future__ import annotations
 import csv
 
+from dataclasses import dataclass
 from datatypes import Track, Tree, Queue
 from typing import Any, Optional
 
@@ -18,25 +19,28 @@ class TrackList:
 
         self._tracks = {}
 
-        track_points = {}
+        # Contains points used in kd tree for search algorithm, in the form ((data), track_id) where (data)
+        # is a n dimensional vector
+        track_points = []
 
         with open(dataset, "r", encoding="UTF-8") as data:
             track_reader = csv.reader(data)
             for track in track_reader:
-                track_profile = {
-                        "danceability": track[8],
-                        "energy": track[9],
-                        "loudness": track[11],
-                        "speechiness": track[13],
-                        "acousticness": track[14],
-                        "instrumentalness": track[15],
-                        "liveness": track[16],
-                        "valence": track[17]
-                    }
+
+                track_point = ((
+                    track[8], # danceability
+                    track[9], # energy
+                    track[11], # loudness
+                    track[13], # speechiness
+                    track[14], # acousticness
+                    track[15], # instrumentalness
+                    track[16], # livevness
+                    track[17] # valence
+                ), track[1])
+
+                track_points.append(track_point)
                 
-                track_points[track[1]] = track_profile
-
-
+                #Left out key, mode, tempo and time signature as currently we do not need it.
                 new_track = Track(
                     track_id = track[1],
                     artists = track[2],
@@ -45,11 +49,6 @@ class TrackList:
                     popularity = track[5],
                     duration_ms = track[6],
                     explicit = track[7],
-                    track_profile = track_profile,
-                    key = track[10],
-                    mode = track[12],
-                    tempo = track[18],
-                    time_signature = track[19],
                     track_genre = track[20],
                     )
 
@@ -58,6 +57,8 @@ class TrackList:
     def get_track(self, track_id: str) -> Track:
         """
         Return Track associated with track_id, if Track does not exist return None
+
+        Using dictionary lookup, consider switching to binary search
         """
         if track_id in self._tracks:
             return self._tracks[track_id]
@@ -67,70 +68,107 @@ class TrackList:
     def add_track(self, Track):
         pass #todo finish this
 
-class kd_tree:
+class _KdTree:
     """
     Creates a k-d tree to search close neighbours ygm
+
+    information:
+    - 
+    attributes:
+    - _root contains tuple holding vector data and track_id
     """
-    _root: str
-    _left: Tree
-    _right: Tree
-    _parent: Optional[Tree]
+    root: str
+    left: Tree
+    right: Tree
+    parent: Optional[_KdTree]
 
-    def __init__(self,order:list[str], points: dict[str, dict[str, int]]):
-        if points == {}:
-            self._root = None
-            self._left = None
-            self._right = None
-        else:
-            sorted = self._sort_dictionary_by_key(order[0], points)
-            order = order[1::] + order[0]
-    
-            tracks = [(track_id,track_profile[order[0]]) for track_id,track_profile in sorted.items]
-
-            if len(tracks) % 2 == 1:
-                median_track = tracks[len(tracks) // 2][0]
-            else:
-                median_track = tracks[len(tracks) // 2 -1][0]
-
-            self._root = (median_track, points[median_track])
-
-            self._right = kd_tree(order = order, points = {p: points[p] for p in points if points[p][order[0]] > points[median_track][order[0]]})
-            self._right._parent = self
-            self._left = kd_tree(order = order, points = {p: points[p] for p in points if points[p][order[0]] < points[median_track][order[0]]})
-            self._left._parent = self
+    def __init__(self):
+        self.root = None
+        self.left = None
+        self.right = None
+        self.parent = None
             
+    def _sort_points(self, axis: int, points: list[_KdTreePoint]) -> list[_KdTreePoint]:
+        """Return sorted list along the specified axis"""
+        return sorted(points, key = lambda item: item.vector[axis])
+    
+    def _find_median(self, axis: int, points: list[_KdTreePoint]) -> tuple[_KdTreePoint, float]:
+        """Return tuple containing median _KdTreePoint and the median along axis
+        If points is even length, the median is the lower of the two middle points.
         
-    def _sort_dictionary_by_key(self, axis: Any, dictionary: dict[str, dict[str, int]]):
-        """Sorts a nested dictionary by the specified key"""
+        pre-conditions:
+         - points must be sorted in increasing order
+        """
 
-        return dict(sorted(dictionary.items(), key = lambda item: item[1][axis]))
+        n = len(points)
+
+        if n == 1:
+            median = points[0]
+            return (median, median.vector[axis])
+        elif n % 2 != 0:
+            median = points[int((n + 1) // 2)]
+            return (median, median.vector[axis])
+        else:
+            median = points[int(n // 2) - 1]
+            return (median, median.vector[axis])
+
+    def create_tree(self, points: list[_KdTreePoint], current_axis: int, parent: Optional[_KdTree] = None):
+        if points == []:
+            self.root = None
+            self.left = None
+            self.right = None
+            self.parent = parent
+        else:
+            points = self._sort_points(current_axis, points)
+            current_axis = (current_axis + 1) % 8 # cycles axis in order
+
+            median_point, median_value = self._find_median(current_axis, points)
+
+            self.root = median_point
+            self.parent = parent
+            self.right = _KdTree()
+            self.left = _KdTree()
+
+            right_points = [x for x in points if x.vector[current_axis] > median_value]
+            self.right.create_tree(right_points, current_axis, self)
+            
+            left_points = [x for x in points if x.vector[current_axis] < median_value]
+            self.left.create_tree(left_points, current_axis, self)
     
-    def _add_parent(self, parent: Tree) -> None:
-        self._parent = parent
-    
-    def find_reccomendations(self, track: Track, number: int) -> list[Track]:
+    def find_reccomendations(self, point: _KdTreePoint, number: int) -> list[Track]:
         # todo: fix this man this sucks
 
-        track_profile = track.track_profile
-        tracks_so_far = Queue()
-        order = ["danceability", "energy", "loudness", "speechiness", "acousticness", "instrumentalness", "liveness", "valence"]
-
-
-
+        points_so_far = Queue()
 
     def _recursive_find_reccomendations(self, order, track_profile, number, tracks_so_far):
         # todo: this asw this also sucks bad
-        if track_profile[order[0]] > self._root[1][order[0]]:
-            order = order[1::] + order[0]
-            self._right._recursive_find_reccomendations(order, track_profile, number, tracks_so_far)
-        elif track_profile[order[0]] < self._root[1][order[0]]:
-            order = order[1::] + order[0]
-            self._left._recursive_find_reccomendations(order, track_profile, number, tracks_so_far)
+        if self.left is None and self.right is None:
+            pass
+
+
+@dataclass
+class _KdTreePoint:
+    """Helper object to represent one vector point, used in _KdTree"""
+    vector: tuple[float]
+    name: str
+
 
 
 
 if __name__ == "__main__":
-    order = ["danceability", "energy", "loudness", "speechiness", "acousticness", "instrumentalness", "liveness", "valence"]
 
-    print("-" * 60)
-    tracklist = TrackList("dataset.csv")
+    print(int((3+1) / 2))
+    test_points = [_KdTreePoint((2, 3, 2, 8, 4, 4, 7, 6), "a"),
+                   _KdTreePoint((9, 0, 5, 0, 3, 8, 7, 9), "b"),
+                   _KdTreePoint((3, 0, 4, 3, 2, 0, 8, 1), "c"),
+                   _KdTreePoint((6, 0, 1, 5, 8, 9, 1, 2), "d"),
+                   _KdTreePoint((5, 9, 8, 2, 8, 7, 4, 9), "e"),
+                   _KdTreePoint((7, 6, 1, 5, 8, 5, 9, 1), "f"),]
+    
+    test_tree = _KdTree()
+    sorted_points = test_tree._sort_points(2, test_points)
+    for point in sorted_points:
+        print(point)
+    print(test_tree._find_median(2, sorted_points))
+
+    test_tree.create_tree(test_points, 0)
