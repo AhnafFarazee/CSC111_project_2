@@ -27,16 +27,6 @@ class Track:
     explicit: bool
     track_genre: str
 
-    def euclid_distance(self, comparison_track: Track) -> float:
-        """calculates euclidean distance between two Track objects"""
-        track_1_values = self.track_profile.values
-        track_2_values = self.track_profile.values
-
-        for i in range(len(track_1_values)):
-            sum_so_far = (track_1_values[i] - track_2_values[i]) ** 2
-        
-        return sum_so_far ** 0.5
-
 class Tree:
     _root: Optional[Any]
     _subtrees: list[Tree]

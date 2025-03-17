@@ -73,7 +73,10 @@ class _KdTree:
     Creates a k-d tree to search close neighbours ygm
 
     information:
-    - 
+    - make sure all the vectors are all the same length otherwise it doesn't work and i cba
+      to fix that so like dont do it man
+    - because of the way this is you can't add additional points once it's created you gotta recreate the
+      whole tree
     attributes:
     - _root contains tuple holding vector data and track_id
     """
@@ -92,8 +95,8 @@ class _KdTree:
         """Return sorted list along the specified axis"""
         return sorted(points, key = lambda item: item.vector[axis])
     
-    def _find_median(self, axis: int, points: list[_KdTreePoint]) -> tuple[_KdTreePoint, float]:
-        """Return tuple containing median _KdTreePoint and the median along axis
+    def _split_median(self, axis: int, points: list[_KdTreePoint]) -> tuple[_KdTreePoint, float]:
+        """Return tuple containing median _KdTreePoint, median along axis, the left and right lists
         If points is even length, the median is the lower of the two middle points.
         
         pre-conditions:
@@ -102,38 +105,40 @@ class _KdTree:
 
         n = len(points)
 
-        if n == 1:
-            median = points[0]
-            return (median, median.vector[axis])
-        elif n % 2 != 0:
-            median = points[int((n + 1) // 2)]
-            return (median, median.vector[axis])
+        if n % 2 == 1:
+            mid = n // 2
         else:
-            median = points[int(n // 2) - 1]
-            return (median, median.vector[axis])
+            mid = n // 2 - 1
+
+        median = points[mid]
+        
+        return (median, median.vector[axis], points[:mid], points[mid + 1:])
 
     def create_tree(self, points: list[_KdTreePoint], current_axis: int, parent: Optional[_KdTree] = None):
+        # todo: try redoing this in the __init__ function (?)
+
         if points == []:
-            self.root = None
-            self.left = None
-            self.right = None
             self.parent = parent
         else:
             points = self._sort_points(current_axis, points)
-            current_axis = (current_axis + 1) % 8 # cycles axis in order
 
-            median_point, median_value = self._find_median(current_axis, points)
+            median_point, median_value, left_points, right_points = self._split_median(current_axis, points)
+
+            print("median value: ", median_value)
 
             self.root = median_point
             self.parent = parent
-            self.right = _KdTree()
-            self.left = _KdTree()
 
-            right_points = [x for x in points if x.vector[current_axis] > median_value]
-            self.right.create_tree(right_points, current_axis, self)
-            
-            left_points = [x for x in points if x.vector[current_axis] < median_value]
-            self.left.create_tree(left_points, current_axis, self)
+            self.left, self.right = _KdTree(), _KdTree()
+
+            if right_points != []:
+                self.right.create_tree(right_points, (current_axis + 1) % len(points[0].vector), self)
+
+            if left_points != []:
+                self.left.create_tree(left_points, (current_axis + 1) % len(points[0].vector), self)
+
+       
+
     
     def find_reccomendations(self, point: _KdTreePoint, number: int) -> list[Track]:
         # todo: fix this man this sucks
@@ -145,6 +150,21 @@ class _KdTree:
         if self.left is None and self.right is None:
             pass
 
+    def is_empty(self) -> bool:
+        return self.root is None
+
+    def __str__(self) -> str:
+        return self._str_indented(0).rstrip()
+    
+    def _str_indented(self, rank: int) -> str:
+
+        if self.is_empty():
+            return ""
+        else:
+            return (rank * " " + f"{self.root}\n"
+                    + self.right._str_indented(rank + 1)
+                    + self.left._str_indented(rank + 1))
+
 
 @dataclass
 class _KdTreePoint:
@@ -152,23 +172,35 @@ class _KdTreePoint:
     vector: tuple[float]
     name: str
 
+    def __str__(self) -> str:
+        return f"{self.name}: " + str(self.vector)
+
 
 
 
 if __name__ == "__main__":
-
-    print(int((3+1) / 2))
-    test_points = [_KdTreePoint((2, 3, 2, 8, 4, 4, 7, 6), "a"),
+    test_points_1 = [_KdTreePoint((2, 3, 2, 8, 4, 4, 7, 6), "a"),
                    _KdTreePoint((9, 0, 5, 0, 3, 8, 7, 9), "b"),
                    _KdTreePoint((3, 0, 4, 3, 2, 0, 8, 1), "c"),
                    _KdTreePoint((6, 0, 1, 5, 8, 9, 1, 2), "d"),
                    _KdTreePoint((5, 9, 8, 2, 8, 7, 4, 9), "e"),
                    _KdTreePoint((7, 6, 1, 5, 8, 5, 9, 1), "f"),]
     
+    test_points_2 = [_KdTreePoint((2, 3, 2, 8, 4, 4, 7, 6), "a"),
+                   _KdTreePoint((9, 0, 5, 0, 3, 8, 7, 9), "b"),
+                   _KdTreePoint((3, 0, 4, 3, 2, 0, 8, 1), "c")]
+    
+    test_points_3 = [_KdTreePoint((1, 0, 0), "x"),
+                     _KdTreePoint((0, 1, 0), "y"),
+                     _KdTreePoint((0, 0, 1), "z")]
+    
     test_tree = _KdTree()
-    sorted_points = test_tree._sort_points(2, test_points)
-    for point in sorted_points:
-        print(point)
-    print(test_tree._find_median(2, sorted_points))
 
-    test_tree.create_tree(test_points, 0)
+    # print(test_tree._sort_points(0, test_points_2))
+    # print("-" * 60)
+    # print(test_tree._sort_points(1, test_points_2))
+    # print("-" * 60)
+    # print(test_tree._sort_points(2, test_points_2))
+
+    test_tree.create_tree(test_points_3, 0)
+    print(test_tree)
