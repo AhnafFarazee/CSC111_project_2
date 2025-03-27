@@ -9,6 +9,20 @@ from datatypes import Track, Tree, Queue
 from typing import Any, Optional
 
 class TrackList:
+    """
+    Python object used to interact with a given dataset containing Spotify Music
+
+    All methods use a track id as the first input, and return a Track Object or a List of Track Objects
+
+    Overview:
+
+    .get_track(track_id) : Return Track object associated with ID
+    .find_similar(track_id) : Return Track object that is closes to the Track associated with ID
+    .find_multiple_similar(track_id, count) Return list of size 'count' of Track objects close
+                                            close to the Track associated with ID
+
+
+    """
 
     _tracks: dict[str, Track]
     _algorithm: _Brute_Force
@@ -90,7 +104,7 @@ class TrackList:
 
     
     def add_track(self, Track):
-        pass #todo finish this
+        raise NotImplementedError
 
 class _KdTree:
     """
@@ -225,9 +239,6 @@ class _Brute_Force:
         current_id = ""
 
         p = self.points[0]
-        print("p: ", p)
-        print(point.euclidiean_distance(p))
-        print(p.name != point.name)
 
         for p in self.points:
 
@@ -311,10 +322,18 @@ if __name__ == "__main__":
 
     bruh2 = tk.find_multiple_similar("29RiulWABWHcTRLkDqVCl1", 15)
 
-    for i in range(len(bruh2)):
-        print(i, " : ", bruh2[i])
+    print("29RiulWABWHcTRLkDqVCl1" == "29RiulWABWHcTRLkDqVCl1")
 
-    print("similar track: ", bruh2)
+    for i in range(len(bruh2)):
+        print(i, " : ", bruh2[i].track_name)
+
+    with open("dataset.csv", "r", encoding="UTF-8") as data:
+        track_reader = csv.reader(data)
+
+        next(track_reader)
+        for track in track_reader:
+            if ";" in track[1]:
+                print(track[1])
 
     # print(test_tree._sort_points(0, test_points_2))
     # print("-" * 60)
