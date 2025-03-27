@@ -148,6 +148,6 @@ class _Vertex:
     item: str
     neighbours: set[_Vertex]
 
-    def __init__(self, item: Optional[item], neighbours: Optional[set[_Vertex]]) -> None:
+    def __init__(self, item: Optional[Any], neighbours: Optional[set[_Vertex]]) -> None:
         self.item = item
         self.neighbours = neighbours
