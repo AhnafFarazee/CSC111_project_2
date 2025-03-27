@@ -11,6 +11,7 @@ from typing import Any, Optional
 class TrackList:
 
     _tracks: dict[str, Track]
+    _algorithm: _Brute_Force
 
     def __init__(self, dataset: str) -> None:
         """
@@ -19,26 +20,28 @@ class TrackList:
 
         self._tracks = {}
 
-        # Contains points used in kd tree for search algorithm, in the form ((data), track_id) where (data)
-        # is a n dimensional vector
-        track_points = []
+        # Contains points used in kd tree for search algorithm, in the form {name: (points)}
+        track_points = {}
 
         with open(dataset, "r", encoding="UTF-8") as data:
             track_reader = csv.reader(data)
+
+            next(track_reader)
+
             for track in track_reader:
 
-                track_point = ((
-                    track[8], # danceability
-                    track[9], # energy
-                    track[11], # loudness
-                    track[13], # speechiness
-                    track[14], # acousticness
-                    track[15], # instrumentalness
-                    track[16], # livevness
-                    track[17] # valence
-                ), track[1])
+                track_point = (
+                    float(track[8]), # danceability
+                    float(track[9]), # energy
+                    float(track[11]), # loudness
+                    float(track[13]), # speechiness
+                    float(track[14]), # acousticness
+                    float(track[15]), # instrumentalness
+                    float(track[16]), # livevness
+                    float(track[17]) # valence
+                    )
 
-                track_points.append(track_point)
+                track_points[track[1]] = track_point
                 
                 #Left out key, mode, tempo and time signature as currently we do not need it.
                 new_track = Track(
@@ -54,6 +57,8 @@ class TrackList:
 
                 self._tracks[track[1]] = new_track
 
+        self._algorithm = _Brute_Force(track_points)
+
     def get_track(self, track_id: str) -> Track:
         """
         Return Track associated with track_id, if Track does not exist return None
@@ -64,6 +69,25 @@ class TrackList:
             return self._tracks[track_id]
         else:
             return None
+        
+    def find_similar(self, track_id: str) -> Track:
+        """
+        Return Track closest to Track associated with track_id
+        """
+        point = self._algorithm.get_point(track_id)
+
+        similar_id = self._algorithm.find_similar(point)
+        print(similar_id)
+
+        return self.get_track(similar_id)
+    
+    def find_multiple_similar(self, track_id: str, count: int) -> list[Track]:
+        point = self._algorithm.get_point(track_id)
+
+        similar_ids = self._algorithm.find_multiple_similar(point, count)
+
+        return [self.get_track(id) for id in similar_ids]
+
     
     def add_track(self, Track):
         pass #todo finish this
@@ -78,9 +102,9 @@ class _KdTree:
     - because of the way this is you can't add additional points once it's created you gotta recreate the
       whole tree
     attributes:
-    - _root contains tuple holding vector data and track_id
+    - _root contains a _kdTree object for some odd reason
     """
-    root: str
+    root: _Point
     left: Tree
     right: Tree
     parent: Optional[_KdTree]
@@ -91,11 +115,11 @@ class _KdTree:
         self.right = None
         self.parent = None
             
-    def _sort_points(self, axis: int, points: list[_KdTreePoint]) -> list[_KdTreePoint]:
+    def _sort_points(self, axis: int, points: list[_Point]) -> list[_Point]:
         """Return sorted list along the specified axis"""
         return sorted(points, key = lambda item: item.vector[axis])
     
-    def _split_median(self, axis: int, points: list[_KdTreePoint]) -> tuple[_KdTreePoint, float]:
+    def _split_median(self, axis: int, points: list[_Point]) -> tuple[_Point, float]:
         """Return tuple containing median _KdTreePoint, median along axis, the left and right lists
         If points is even length, the median is the lower of the two middle points.
         
@@ -114,7 +138,7 @@ class _KdTree:
         
         return (median, median.vector[axis], points[:mid], points[mid + 1:])
 
-    def create_tree(self, points: list[_KdTreePoint], current_axis: int, parent: Optional[_KdTree] = None):
+    def create_tree(self, points: list[_Point], current_axis: int, parent: Optional[_KdTree] = None):
         # todo: try redoing this in the __init__ function (?)
 
         if points == []:
@@ -123,8 +147,6 @@ class _KdTree:
             points = self._sort_points(current_axis, points)
 
             median_point, median_value, left_points, right_points = self._split_median(current_axis, points)
-
-            print("median value: ", median_value)
 
             self.root = median_point
             self.parent = parent
@@ -140,14 +162,16 @@ class _KdTree:
        
 
     
-    def find_reccomendations(self, point: _KdTreePoint, number: int) -> list[Track]:
+    def find_similar(self, point: _Point, number: int) -> list[str]:
         # todo: fix this man this sucks
 
         points_so_far = Queue()
 
-    def _recursive_find_reccomendations(self, order, track_profile, number, tracks_so_far):
+    def _recursive_find_similar(self, vector: tuple[float], current_axis: int):
         # todo: this asw this also sucks bad
-        if self.left is None and self.right is None:
+        if self.left._root is None and self.right._root is None:
+            return self.root
+        elif vector[current_axis] > 0: # temp number
             pass
 
     def is_empty(self) -> bool:
@@ -164,43 +188,136 @@ class _KdTree:
             return (rank * " " + f"{self.root}\n"
                     + self.right._str_indented(rank + 1)
                     + self.left._str_indented(rank + 1))
+        
+class _Brute_Force:
+    """
+    This object is to brute force to find similar tracks
+    """
+
+    points: list[_Point]
+
+    def __init__(self, points:dict[str, tuple[float]]):
+        id_so_far = []
+        points_formatted = []
+
+        for x in points:
+            if x not in id_so_far:
+                points_formatted.append(_Point(points[x], x))
+
+        self.points = points_formatted
+
+    def get_point(self, id) -> _Point:
+        """Return _Point associated with ID"""
+
+        for p in self.points:
+            if id == p.name:
+                return p
+        
+        return None
+
+    def find_similar(self, point: _Point) -> str:
+        """ Return str associated with the point closest to input point
 
 
-@dataclass
-class _KdTreePoint:
+        notice: uses brute force, time complexity O(n) where n is len(self.points)
+        """
+        current_distance = 9999
+        current_id = ""
+
+        p = self.points[0]
+        print("p: ", p)
+        print(point.euclidiean_distance(p))
+        print(p.name != point.name)
+
+        for p in self.points:
+
+            distance = point.euclidiean_distance(p)
+            if distance < current_distance and p.name != point.name:
+                current_distance = distance
+                current_id = p.name
+        
+        return current_id
+    
+    def find_multiple_similar(self, point: _Point, count:int) -> list[str]:
+        distance_dict = {p.name: point.euclidiean_distance(p) for p in self.points}
+        distance_dict.pop(point.name)
+
+        sorted_list = sorted(distance_dict, key = lambda k:distance_dict[k])
+
+        return sorted_list[:count]
+
+
+
+
+
+
+class _Point:
     """Helper object to represent one vector point, used in _KdTree"""
     vector: tuple[float]
     name: str
 
+    def __init__(self, vector: tuple[float], name: str):
+        self.vector = vector
+        self.name = name
+
     def __str__(self) -> str:
         return f"{self.name}: " + str(self.vector)
 
+    def euclidiean_distance(self, comparison: _Point) -> float:
+        """
+        Return distance from self to the comparison point.
+
+        Pre-conditions:
+            - len(self.vector) == len(comparison.vector)
+            - len(self.vector) > 0
+        """
+
+        v1 = self.vector
+        v2 = comparison.vector
+
+        sum_so_far = 0.0
+
+        for i in range(len(v1)):
+            sum_so_far += (v1[i]-v2[i]) ** 2
+        
+        return sum_so_far ** 0.5
 
 
 
 if __name__ == "__main__":
-    test_points_1 = [_KdTreePoint((2, 3, 2, 8, 4, 4, 7, 6), "a"),
-                   _KdTreePoint((9, 0, 5, 0, 3, 8, 7, 9), "b"),
-                   _KdTreePoint((3, 0, 4, 3, 2, 0, 8, 1), "c"),
-                   _KdTreePoint((6, 0, 1, 5, 8, 9, 1, 2), "d"),
-                   _KdTreePoint((5, 9, 8, 2, 8, 7, 4, 9), "e"),
-                   _KdTreePoint((7, 6, 1, 5, 8, 5, 9, 1), "f"),]
+    point_a = _Point((2, 3, 2, 8, 4, 4, 7, 6), "a")
+    point_b = _Point((9, 0, 5, 0, 3, 8, 7, 9), "b")
+    test_points_1 = [_Point((2, 3, 2, 8, 4, 4, 7, 6), "a"),
+                   _Point((9, 0, 5, 0, 3, 8, 7, 9), "b"),
+                   _Point((3, 0, 4, 3, 2, 0, 8, 1), "c"),
+                   _Point((6, 0, 1, 5, 8, 9, 1, 2), "d"),
+                   _Point((5, 9, 8, 2, 8, 7, 4, 9), "e"),
+                   _Point((7, 6, 1, 5, 8, 5, 9, 1), "f"),]
     
-    test_points_2 = [_KdTreePoint((2, 3, 2, 8, 4, 4, 7, 6), "a"),
-                   _KdTreePoint((9, 0, 5, 0, 3, 8, 7, 9), "b"),
-                   _KdTreePoint((3, 0, 4, 3, 2, 0, 8, 1), "c")]
+    test_points_2 = [_Point((2, 3, 2, 8, 4, 4, 7, 6), "a"),
+                   _Point((9, 0, 5, 0, 3, 8, 7, 9), "b"),
+                   _Point((3, 0, 4, 3, 2, 0, 8, 1), "c")]
     
-    test_points_3 = [_KdTreePoint((1, 0, 0), "x"),
-                     _KdTreePoint((0, 1, 0), "y"),
-                     _KdTreePoint((0, 0, 1), "z")]
+    test_points_3 = [_Point((1, 0, 0), "x"),
+                     _Point((0, 1, 0), "y"),
+                     _Point((0, 0, 1), "z")]
     
-    test_tree = _KdTree()
+
+
+
+    tk = TrackList("dataset.csv")
+
+    bruh = tk._algorithm.get_point("29RiulWABWHcTRLkDqVCl1")
+
+    bruh2 = tk.find_multiple_similar("29RiulWABWHcTRLkDqVCl1", 15)
+
+    for i in range(len(bruh2)):
+        print(i, " : ", bruh2[i])
+
+    print("similar track: ", bruh2)
 
     # print(test_tree._sort_points(0, test_points_2))
     # print("-" * 60)
     # print(test_tree._sort_points(1, test_points_2))
     # print("-" * 60)
     # print(test_tree._sort_points(2, test_points_2))
-
-    test_tree.create_tree(test_points_3, 0)
-    print(test_tree)

@@ -27,6 +27,9 @@ class Track:
     explicit: bool
     track_genre: str
 
+    def __str__(self) -> str:
+        pass
+
 class Tree:
     _root: Optional[Any]
     _subtrees: list[Tree]
