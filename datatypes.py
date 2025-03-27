@@ -121,3 +121,33 @@ class Queue:
 
 if __name__ == "__main__":
     print("ok")
+
+
+class Graph:
+    """Graph object"""
+    _verticies: dict[Any, _Vertex]
+
+    def __init__(self) -> None:
+        """Initializes an empty graph"""
+        self._verticies = {}
+
+    def add_item(self, item: Any) -> None:
+        if item not in self._verticies:
+            self._verticies[item] = _Vertex(item)
+    
+    def add_edge(self, item_1:_Vertex, item_2:_Vertex) -> None:
+        if item_1 in self._verticies and item_2 in self._verticies:
+            self._verticies[item_1].neighbours.add(self._verticies[item_2])
+            self._verticies[item_2].neighbours.add(self._verticies[item_1])
+        else:
+            raise NameError
+
+
+class _Vertex:
+    """Vertex object"""
+    item: str
+    neighbours: set[_Vertex]
+
+    def __init__(self, item: Optional[item], neighbours: Optional[set[_Vertex]]) -> None:
+        self.item = item
+        self.neighbours = neighbours

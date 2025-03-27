@@ -108,15 +108,9 @@ class TrackList:
 
 class _KdTree:
     """
-    Creates a k-d tree to search close neighbours ygm
+    [depreciated]
 
-    information:
-    - make sure all the vectors are all the same length otherwise it doesn't work and i cba
-      to fix that so like dont do it man
-    - because of the way this is you can't add additional points once it's created you gotta recreate the
-      whole tree
-    attributes:
-    - _root contains a _kdTree object for some odd reason
+    KDTree used to search for similar tracks
     """
     root: _Point
     left: Tree
