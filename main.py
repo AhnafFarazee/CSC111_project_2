@@ -2,7 +2,7 @@
 from __future__ import annotations
 from tkinter import *
 import customtkinter as ctk
-from api_services import itunes
+from api_services.itunes import get_track_summary
 import math
 
 
@@ -89,7 +89,7 @@ class MusicFrame(ctk.CTkFrame):
 
     def _confirm_song(self) -> None:
         self._confirm = True
-    
+
     def _deny_song(self) -> None:
         self._confirm = False
 
@@ -106,7 +106,7 @@ class MusicFrame(ctk.CTkFrame):
         self.song_artist.configure(text = artists)
         self.song_artist.grid(row=3, column = 0, columnspan = 3, sticky = "ew")
 
-    def user_input(self, title: str, image: PhotoImage, artists:str) -> bool:
+    def user_input(self, title: str, image, artists:str) -> bool:
 
         self._update_current_song(title, image, artists)
 
@@ -135,7 +135,7 @@ class Visualizer(ctk.CTkFrame):
         self.columnconfigure(0, weight=1)
 
         self.display_graph()
-    
+
     def display_graph(self):
         """Display the PlaylistGraph on a Tkinter canvas"""
         canvas = ctk.CTkCanvas(self, bg="white", height=400, width=400)
@@ -196,7 +196,7 @@ class App(ctk.CTk):
 
 class PlaylistGraph():
     """Graph object to store playlist information"""
-    
+
     _verticies: dict[str, _Vertex]
 
     def __init__(self):
@@ -214,15 +214,15 @@ class PlaylistGraph():
             self.add_item(song)
             for track_id in ids_so_far:
                 self.add_edge(self._verticies[track_id].item, song)
-            
+
             return True
         else:
             return False
-    
+
     def add_item(self, song: Track) -> None:
         if song.track_id not in self._verticies:
             self._verticies[song.track_id] = _Vertex(song)
-    
+
     def add_edge(self, song_1: Track, song_2: Track):
         if song_1.track_id in self._verticies and song_2.track_id in self._verticies:
             self._verticies[song_1.track_id].neighbours.add(self._verticies[song_2.track_id])
@@ -232,14 +232,14 @@ class PlaylistGraph():
 
     def __contains__(self, item: Track) -> bool:
         return item.track_id in self._verticies
-    
+
     def get_song_ids(self) -> list[str]:
         """Return all song IDs in the graph"""
         return list(self._verticies.keys())
-    
+
     def get_song_names(self) -> list[str]:
         return [x.item.track_name for x in self._verticies.values()]
-    
+
     def get_connections(self):
         """Return the list of edges (song pairs)"""
         edges = []
@@ -247,7 +247,7 @@ class PlaylistGraph():
             for neighbour in vertex.neighbours:
                 edges.append((vertex.item.track_id, neighbour.item.track_id))
         return edges
-    
+
 class _Vertex:
     """Vertex object"""
     item: Track
@@ -258,7 +258,21 @@ class _Vertex:
         self.neighbours = set()
 
 
+from io import BytesIO
+from PIL import Image, ImageTk
+# from pillow
+import requests
+import customtkinter as ctk
 
+def get_tk_photo(url):
+    """Fetch an image from a URL and return a CustomTkinter-compatible CTkImage."""
+    response = requests.get(url)
+    img_data = BytesIO(response.content)
+    image = Image.open(img_data)
+
+    # Resize if needed (width, height)
+    ctk_image = ctk.CTkImage(light_image=image, size=(100, 100))
+    return ctk_image
 
 tk = TrackList("dataset.csv")
 pending_songs = []
@@ -278,11 +292,18 @@ while True:
     root_song, curr_song = pending_songs.pop(0)
 
     # REMEMVER CALL RAEES TO FIX THIS
-    # song_info = itunes.get_track_summary(track.artists, track.album_name)
-    # song_photo = itunes.load_image_from_url(song_info["artwork"])
+
+    song_info = get_track_summary(curr_song.artists, curr_song.track_name)
+
+    while song_info == {}:         #recommend new song if itunes cannot find this one
+
+        root_song, curr_song = pending_songs.pop(0)
+        song_info = get_track_summary(curr_song.artists, curr_song.track_name)
+
+    song_photo = get_tk_photo(song_info["artwork"])
 
     # replace None with song_photo
-    confirmation = app.music_frame.user_input(curr_song.track_name, None, curr_song.artists)
+    confirmation = app.music_frame.user_input(curr_song.track_name, song_photo, curr_song.artists)
     if confirmation:
         playlist.add_item(curr_song)
         playlist.add_edge(curr_song, root_song)
@@ -297,6 +318,6 @@ while True:
     pending_songs = [x for x in pending_songs if x[1] not in playlist]
 
     app.visualizer.display_graph()
-    
+
     app.update()
 

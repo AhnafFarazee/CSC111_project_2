@@ -2,7 +2,6 @@
 import requests
 from tkinter import PhotoImage
 from io import BytesIO
-from PIL import Image
 
 
 def get_track_summary(artist: str, title: str) -> dict:
@@ -27,20 +26,20 @@ def get_track_summary(artist: str, title: str) -> dict:
 
     return {}
 
-def load_image_from_url(url: str) -> PhotoImage:
-    """Return a photoimage from specified url
-    Return nothing if image was not found
-    """
-    response = requests.get(url)
-    if response.status_code == 200:
-        img_data = Image.open(BytesIO(response.content))
-
-        photo = PhotoImage(img_data)
-        return photo
-    else:
-        return None
-
-
-query = get_track_summary("Kanye West", "My beautiful dark twisted fantasy")
-print(query)
-
+# def load_image_from_url(url: str) -> PhotoImage:
+#     """Return a photoimage from specified url
+#     Return nothing if image was not found
+#     """
+#     response = requests.get(url)
+#     if response.status_code == 200:
+#         img_data = Image.open(BytesIO(response.content))
+#
+#         photo = PhotoImage(img_data)
+#         return photo
+#     else:
+#         return None
+#
+#
+# query = get_track_summary("Kanye West", "My beautiful dark twisted fantasy")
+# print(query)
+#
