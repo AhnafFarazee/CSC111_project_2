@@ -131,6 +131,9 @@ class Visualizer(ctk.CTkFrame):
         # stored in id:track pairs
         self.graph = graph
 
+        self.rowconfigure(0, weight=1)
+        self.columnconfigure(0, weight=1)
+
         self.display_graph()
     
     def display_graph(self):
@@ -153,7 +156,7 @@ class Visualizer(ctk.CTkFrame):
             y = 200 + 100 * math.sin(math.radians(angle))
             positions[song_id] = (x, y)
             canvas.create_oval(x - 20, y - 20, x + 20, y + 20, fill="lightblue")
-            canvas.create_text(x, y, text=song_id)
+            canvas.create_text(x, y, text=tk.get_track(song_id).track_name)
 
         # Draw the edges (connections)
         for edge in edges:
@@ -235,7 +238,7 @@ class PlaylistGraph():
         return list(self._verticies.keys())
     
     def get_song_names(self) -> list[str]:
-        return [x.item.name for x in self._verticies.items()]
+        return [x.item.track_name for x in self._verticies.values()]
     
     def get_connections(self):
         """Return the list of edges (song pairs)"""
@@ -292,8 +295,6 @@ while True:
                     pending_songs.append((curr_song, song))
 
     pending_songs = [x for x in pending_songs if x[1] not in playlist]
-
-    print([(x.item.track_name, x.item.track_id) for x in playlist._verticies.values()])
 
     app.visualizer.display_graph()
     
