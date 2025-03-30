@@ -125,7 +125,7 @@ if __name__ == "__main__":
 
 class Graph:
     """Graph object"""
-    _verticies: dict[Any, _Vertex]
+    verticies: dict[Any, _Vertex]
 
     def __init__(self) -> None:
         """Initializes an empty graph"""
