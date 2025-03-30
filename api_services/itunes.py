@@ -1,7 +1,6 @@
 """iTunes API"""
 import requests
 
-
 def get_track_summary(artist: str, title: str) -> dict:
     """Returns a dictionary with song details based on title and artist search.
     Returns an empty dictionary if there is an error finding the song."""
