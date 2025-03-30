@@ -29,7 +29,6 @@ class _Individual_Choice(ctk.CTkFrame):
         self.butt.grid(row=1, column = 0)
 
 
-
 class MusicFrame(ctk.CTkFrame):
     """
     Frame to handle user choice regarding which songs are acceptable and not acceptable
@@ -46,67 +45,165 @@ class MusicFrame(ctk.CTkFrame):
 
         self._confirm = None
 
-        self.rowconfigure(0, weight=1)
+        # Initialize player attributes
+        self.player = None
+        self.current_url = None
+        self.is_playing = False
+        self.player_thread = None
+        self.current_song_info = None
 
-        self.rowconfigure(1,weight=1)
+        # Rest of your existing initialization code
+        self.rowconfigure(0, weight=1)
+        self.rowconfigure(1, weight=1)
         self.rowconfigure(2, weight=5)
         self.rowconfigure(3, weight=1)
         self.rowconfigure(4, weight=1)
         self.rowconfigure(5, weight=1)
-
         self.rowconfigure(6, weight=3)
 
-
         self.columnconfigure(0, weight=1)
-        self.columnconfigure(1,weight=3)
-        self.columnconfigure(2,weight=1)
+        self.columnconfigure(1, weight=3)
+        self.columnconfigure(2, weight=1)
 
-        # self.label = ctk.CTkLabel(self, fg_color="gray", text = "bruh")
-        # self.label.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
-
-        # row 1
+        # Row 1
         self.song_title = ctk.CTkLabel(self, text="Power", font=("Helvetica", 30))
-        self.song_title.grid(row=1, column = 0, columnspan=3, sticky="ew")
+        self.song_title.grid(row=1, column=0, columnspan=3, sticky="ew")
 
-        # row 2
+        # Row 2
         song_image = None
-        self.song_image = ctk.CTkLabel(self, image=song_image, text = "")
-        self.song_image.grid(row=2, column = 1)
+        self.song_image = ctk.CTkLabel(self, image=song_image, text="")
+        self.song_image.grid(row=2, column=1)
 
-        # row 3
+        # Row 3
         self.song_artist = ctk.CTkLabel(self, text="Kanye West")
-        self.song_artist.grid(row=3, column =0, columnspan = 3, sticky = "")
+        self.song_artist.grid(row=3, column=0, columnspan=3, sticky="")
 
-        # row 4
-        self.song_link = ctk.CTkButton(self, text="play/pause", command = self.play_pause)
-        self.song_link.grid(row=4, column = 1)
+        # Row 4
+        self.song_link = ctk.CTkButton(self, text="play/pause", command=self.play_pause)
+        self.song_link.grid(row=4, column=1)
 
-        self.deny_button = ctk.CTkButton(self,fg_color="red", text="no", command= self._deny_song, width=50)
-        self.deny_button.grid(row=4,column=0,sticky="nsew", padx=5,pady=5)
+        self.deny_button = ctk.CTkButton(self, fg_color="red", text="no", command=self._deny_song, width=50)
+        self.deny_button.grid(row=4, column=0, sticky="nsew", padx=5, pady=5)
 
-        self.confirm_button = ctk.CTkButton(self, fg_color="green", text="yes", command= self._confirm_song, width=50)
-        self.confirm_button.grid(row=4,column=2,sticky="nsew", padx=5,pady=5)
+        self.confirm_button = ctk.CTkButton(self, fg_color="green", text="yes", command=self._confirm_song, width=50)
+        self.confirm_button.grid(row=4, column=2, sticky="nsew", padx=5, pady=5)
 
     def _confirm_song(self) -> None:
+        self.stop_audio()
         self._confirm = True
 
     def _deny_song(self) -> None:
+        self.stop_audio()
         self._confirm = False
 
+
     def play_pause(self) -> None:
-        print("play", "pause")
+        """Play or pause the current song"""
+        # Check if we have song info with an audio URL
+        if not hasattr(self,
+                       'current_song_info') or not self.current_song_info or "audio_url" not in self.current_song_info:
+            print("No audio URL available")
+            return
+
+        url = self.current_song_info["audio_url"]
+
+        # Toggle between play and pause states
+        if url != self.current_url or self.player is None:
+            # New song or first play
+            if self.player:
+                self.stop_audio()
+            self.current_url = url
+            self.play_audio(url)
+            self.song_link.configure(text="pause")
+        elif self.is_playing:
+            # Pause current song
+            self.player.pause()
+            self.is_playing = False
+            print("Paused playback")
+            self.song_link.configure(text="play")
+        else:
+            # Resume current song
+            self.player.play()
+            self.is_playing = True
+            print("Resumed playback")
+            self.song_link.configure(text="pause")
+
+    def play_audio(self, url):
+        """Load and play audio from the given URL"""
+
+        def audio_thread():
+            import pyglet
+            import requests
+            import io
+
+            print(f"Playing audio from: {url}")
+
+            try:
+                # Download the M4A file
+                response = requests.get(url)
+                audio_data = io.BytesIO(response.content)
+
+                # Save to a temporary file
+                with open("temp_audio.m4a", "wb") as f:
+                    f.write(audio_data.getbuffer())
+
+                # Load and play the audio
+                self.player = pyglet.media.Player()
+                source = pyglet.media.load("temp_audio.m4a", streaming=False)
+                self.player.queue(source)
+                self.player.play()
+                self.is_playing = True
+
+                # Setup pyglet event handling that doesn't block tkinter
+                def update_player():
+                    if not self.is_playing:
+                        return
+
+                    pyglet.clock.tick()
+                    # Schedule the next update using tkinter's after method
+                    self.after(33, update_player)  # ~30 fps
+
+                # Start the update cycle
+                update_player()
+            except Exception as e:
+                print(f"Error playing audio: {e}")
+                self.is_playing = False
+
+        # Run in a separate thread to avoid blocking the UI
+        import threading
+        self.player_thread = threading.Thread(target=audio_thread)
+        self.player_thread.daemon = True
+        self.player_thread.start()
+
+    def stop_audio(self):
+        """Stop the current audio playback"""
+        if self.player:
+            self.player.pause()
+            self.player.delete()
+            self.player = None
+        self.is_playing = False
+        print("Stopped playback")
+        self.song_link.configure(text="play")
 
     def _update_current_song(self, title: str, image: PhotoImage, artists: str) -> None:
-        self.song_title.configure(text = title)
+        self.song_title.configure(text=title)
         self.song_title.grid(row=1, column=0, columnspan=3, sticky="ew")
 
-        self.song_image.configure(image = image)
+        self.song_image.configure(image=image)
         self.song_image.grid(row=2, column=1)
 
-        self.song_artist.configure(text = artists)
-        self.song_artist.grid(row=3, column = 0, columnspan = 3, sticky = "ew")
+        self.song_artist.configure(text=artists)
+        self.song_artist.grid(row=3, column=0, columnspan=3, sticky="ew")
 
-    def user_input(self, title: str, image, artists:str) -> bool:
+        # Reset play/pause button text when displaying a new song
+        self.song_link.configure(text="play")
+
+    def user_input(self, title: str, image, artists: str, song_info=None) -> bool:
+        # Store the song info for the play button to use
+        self.current_song_info = song_info
+
+        # Stop any currently playing audio
+        self.stop_audio()
 
         self._update_current_song(title, image, artists)
 
@@ -120,7 +217,6 @@ class MusicFrame(ctk.CTkFrame):
         else:
             self._confirm = None
             return False
-
 
 
 class Visualizer(ctk.CTkFrame):
@@ -302,8 +398,8 @@ while True:
 
     song_photo = get_tk_photo(song_info["artwork"])
 
-    # replace None with song_photo
-    confirmation = app.music_frame.user_input(curr_song.track_name, song_photo, curr_song.artists)
+    # confirmation = app.music_frame.user_input(curr_song.track_name, song_photo, curr_song.artists)
+    confirmation = app.music_frame.user_input(curr_song.track_name, song_photo, curr_song.artists, song_info)
     if confirmation:
         playlist.add_item(curr_song)
         playlist.add_edge(curr_song, root_song)
