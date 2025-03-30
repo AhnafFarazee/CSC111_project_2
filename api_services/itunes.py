@@ -1,7 +1,6 @@
 """iTunes API"""
 import requests
 
-from spotify import Spotify
 
 def id_to_track_summary(track_id: id) -> dict:
     """Return track summary from iTunes track ID"""
@@ -42,19 +41,7 @@ def fetch_itunes_track_data(track_id: int) -> dict:
         return {}
 
 
-
-def spotify_id_to_info(track_id: str):
-    spotify_obj = Spotify(track_id)
-    data = spotify_obj.get_track()
-    if data:
-        result = get_itunes_id(data)
-        return result
-    return None
-
-
-def get_itunes_id(spotify_data):
-    artist = spotify_data["artists"][0]["name"]
-    title = spotify_data["name"]
+def get_itunes_id(artist: str, title: str):
     """Returns the first iTunes song link based on title and artist search."""
     query = f"{artist} {title}".replace(" ", "+")
     url = f"https://itunes.apple.com/search?term={query}&entity=song&limit=1"
@@ -68,5 +55,4 @@ def get_itunes_id(spotify_data):
 
     return None  # No match found
 
-print(id_to_track_summary(spotify_id_to_info("11dFghVXANMlKmJXsNCbNl")))
 
