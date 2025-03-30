@@ -84,6 +84,17 @@ class TrackList:
         else:
             return None
         
+    def get_similarity(self, track_id1: str, track_id2: str) -> float:
+        if track_id1 in self._tracks and track_id2 in self._tracks:
+            point1 = self._algorithm.get_point(track_id1)
+            point2 = self._algorithm.get_point(track_id2)
+        else:
+            raise NameError
+        
+        return point1.euclidiean_distance(point2)
+        
+
+        
     def find_similar(self, track_id: str) -> Track:
         """
         Return Track closest to Track associated with track_id
@@ -319,15 +330,13 @@ if __name__ == "__main__":
     print("29RiulWABWHcTRLkDqVCl1" == "29RiulWABWHcTRLkDqVCl1")
 
     for i in range(len(bruh2)):
-        print(i, " : ", bruh2[i].track_name)
+        print(i, " : ", bruh2[i].track_name, ":", (bruh.euclidiean_distance(tk._algorithm.get_point(bruh2[i].track_id))))
 
-    with open("dataset.csv", "r", encoding="UTF-8") as data:
-        track_reader = csv.reader(data)
+    print(bruh.euclidiean_distance(tk._algorithm.get_point(bruh2[-1].track_id)))
 
-        next(track_reader)
-        for track in track_reader:
-            if ";" in track[1]:
-                print(track[1])
+    print("bruh 2.5")
+
+    print(tk.get_track("5waHhqlk8iTweFuHeZz9CZ"))
 
     # print(test_tree._sort_points(0, test_points_2))
     # print("-" * 60)

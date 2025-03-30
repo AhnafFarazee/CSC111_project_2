@@ -19,7 +19,7 @@ class Track:
 
     """
     track_id: str
-    artists: list[str]
+    artists: str
     album_name: str
     track_name: str
     popularity: int
@@ -118,9 +118,6 @@ class Queue:
         
     def items(self) -> list:
         return self._items.copy()
-
-if __name__ == "__main__":
-    print("ok")
 
 
 class Graph:
