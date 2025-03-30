@@ -4,9 +4,7 @@ Includes functions for finding tracks.
 from __future__ import annotations
 import csv
 
-from dataclasses import dataclass
-from datatypes import Track, Tree, Queue
-from typing import Any, Optional
+from datatypes import Track
 
 class TrackList:
     """
@@ -117,97 +115,6 @@ class TrackList:
     def add_track(self, Track):
         raise NotImplementedError
 
-class _KdTree:
-    """
-    [depreciated]
-
-    KDTree used to search for similar tracks
-    """
-    root: _Point
-    left: Tree
-    right: Tree
-    parent: Optional[_KdTree]
-
-    def __init__(self):
-        self.root = None
-        self.left = None
-        self.right = None
-        self.parent = None
-            
-    def _sort_points(self, axis: int, points: list[_Point]) -> list[_Point]:
-        """Return sorted list along the specified axis"""
-        return sorted(points, key = lambda item: item.vector[axis])
-    
-    def _split_median(self, axis: int, points: list[_Point]) -> tuple[_Point, float]:
-        """Return tuple containing median _KdTreePoint, median along axis, the left and right lists
-        If points is even length, the median is the lower of the two middle points.
-        
-        pre-conditions:
-         - points must be sorted in increasing order
-        """
-
-        n = len(points)
-
-        if n % 2 == 1:
-            mid = n // 2
-        else:
-            mid = n // 2 - 1
-
-        median = points[mid]
-        
-        return (median, median.vector[axis], points[:mid], points[mid + 1:])
-
-    def create_tree(self, points: list[_Point], current_axis: int, parent: Optional[_KdTree] = None):
-        # todo: try redoing this in the __init__ function (?)
-
-        if points == []:
-            self.parent = parent
-        else:
-            points = self._sort_points(current_axis, points)
-
-            median_point, median_value, left_points, right_points = self._split_median(current_axis, points)
-
-            self.root = median_point
-            self.parent = parent
-
-            self.left, self.right = _KdTree(), _KdTree()
-
-            if right_points != []:
-                self.right.create_tree(right_points, (current_axis + 1) % len(points[0].vector), self)
-
-            if left_points != []:
-                self.left.create_tree(left_points, (current_axis + 1) % len(points[0].vector), self)
-
-       
-
-    
-    def find_similar(self, point: _Point, number: int) -> list[str]:
-        # todo: fix this man this sucks
-
-        points_so_far = Queue()
-
-    def _recursive_find_similar(self, vector: tuple[float], current_axis: int):
-        # todo: this asw this also sucks bad
-        if self.left._root is None and self.right._root is None:
-            return self.root
-        elif vector[current_axis] > 0: # temp number
-            pass
-
-    def is_empty(self) -> bool:
-        return self.root is None
-
-    def __str__(self) -> str:
-        return self._str_indented(0).rstrip()
-    
-    def _str_indented(self, rank: int) -> str:
-
-        if self.is_empty():
-            return ""
-        else:
-            return (rank * " " + f"{self.root}\n"
-                    + self.right._str_indented(rank + 1)
-                    + self.left._str_indented(rank + 1))
-        
 class _Brute_Force:
     """
     This object is to brute force to find similar tracks

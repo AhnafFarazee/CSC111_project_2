@@ -69,7 +69,7 @@ class MusicFrame(ctk.CTkFrame):
         self.song_title.grid(row=1, column = 0, columnspan=3, sticky="ew")
 
         # row 2
-        song_image = PhotoImage(file="test.png")
+        song_image = None
         self.song_image = ctk.CTkLabel(self, image=song_image, text = "")
         self.song_image.grid(row=2, column = 1)
 
