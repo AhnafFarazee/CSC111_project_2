@@ -221,45 +221,98 @@ class MusicFrame(ctk.CTkFrame):
 
 class Visualizer(ctk.CTkFrame):
 
-    def __init__(self, master, graph: Graph, **kwargs):
+    def __init__(self, master, graph: PlaylistGraph, **kwargs):
         super().__init__(master, **kwargs)
-
-        # stored in id:track pairs
         self.graph = graph
-
-        self.rowconfigure(0, weight=1)
-        self.columnconfigure(0, weight=1)
-
+        self.canvas = None
+        self.node_positions = {}
+        self._initialize_layout()
         self.display_graph()
 
-    def display_graph(self):
-        """Display the PlaylistGraph on a Tkinter canvas"""
-        canvas = ctk.CTkCanvas(self, bg="white", height=400, width=400)
-        canvas.grid(row=0, column=0, sticky="nsew")
+    def _initialize_layout(self):
+        """Set up grid and canvas"""
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+        self.canvas = ctk.CTkCanvas(self, bg="white", height=800, width=1200)
+        self.canvas.grid(row=0, column=0, sticky="nsew")
 
-        # Retrieve song IDs and connections (edges)
+    def display_graph(self):
+        """Draw the graph using force-directed layout"""
+        self.canvas.delete("all")  # Clear previous drawing
+        
+        # Create NetworkX graph from PlaylistGraph
+        G = nx.Graph()
         song_ids = self.graph.get_song_ids()
         edges = self.graph.get_connections()
+        
+        # Add nodes with metadata
+        for song_id in song_ids:
+            track = self.graph._verticies[song_id].item
+            G.add_node(song_id, 
+                      track_name=track.track_name,
+                      artist=track.artists)
 
-        # Calculate positions for the nodes (simple circular layout)
-        num_nodes = len(song_ids)
-        angle_step = 360 / num_nodes
-        positions = {}
+        # Add edges
+        G.add_edges_from(edges)
 
-        for i, song_id in enumerate(song_ids):
-            angle = i * angle_step
-            x = 200 + 100 * math.cos(math.radians(angle))
-            y = 200 + 100 * math.sin(math.radians(angle))
-            positions[song_id] = (x, y)
-            canvas.create_oval(x - 20, y - 20, x + 20, y + 20, fill="lightblue")
-            canvas.create_text(x, y, text=tk.get_track(song_id).track_name)
+        # Calculate positions using spring layout
+        pos = nx.spring_layout(G, seed=42, k=0.15, iterations=50)
+        
+        # Scale positions to canvas dimensions
+        pos = self._scale_positions(pos, 1200, 800)
 
-        # Draw the edges (connections)
-        for edge in edges:
-            song_1, song_2 = edge
-            x1, y1 = positions[song_1]
-            x2, y2 = positions[song_2]
-            canvas.create_line(x1, y1, x2, y2)
+        # Draw elements
+        self._draw_edges(G, pos)
+        self._draw_nodes(G, pos)
+
+    def _scale_positions(self, pos, canvas_width, canvas_height, padding=50):
+        """Scale networkx positions to canvas coordinates"""
+        x_vals = [x for x, _ in pos.values()]
+        y_vals = [y for _, y in pos.values()]
+        
+        min_x, max_x = min(x_vals), max(x_vals)
+        min_y, max_y = min(y_vals), max(y_vals)
+
+        # Avoid division by zero
+        x_range = max(max_x - min_x, 1e-9)
+        y_range = max(max_y - min_y, 1e-9)
+
+        scaled_pos = {}
+        for node, (x, y) in pos.items():
+            # Normalize and scale
+            scaled_x = padding + (x - min_x) / x_range * (canvas_width - 2*padding)
+            scaled_y = padding + (y - min_y) / y_range * (canvas_height - 2*padding)
+            scaled_pos[node] = (scaled_x, scaled_y)
+            
+        return scaled_pos
+
+    def _draw_edges(self, G, pos):
+        """Draw connections between songs"""
+        for edge in G.edges():
+            x1, y1 = pos[edge[0]]
+            x2, y2 = pos[edge[1]]
+            self.canvas.create_line(x1, y1, x2, y2, 
+                                   fill="#808080", width=1)
+
+    def _draw_nodes(self, G, pos):
+        """Draw song nodes with labels"""
+        for node in G.nodes():
+            x, y = pos[node]
+            track = self.graph._verticies[node].item
+            
+            # Node circle
+            self.canvas.create_oval(x-20, y-20, x+20, y+20,
+                                   fill="#4B8BBE", outline="#306998")
+            
+            # Track name label
+            self.canvas.create_text(x, y-25, 
+                                   text=track.track_name[:15] + ("..." if len(track.track_name) > 15 else ""),
+                                   fill="black", font=("Arial", 9))
+            
+            # Artist label
+            self.canvas.create_text(x, y+25,
+                                   text=track.artists[:15] + ("..." if len(track.artists) > 15 else ""),
+                                   fill="#666666", font=("Arial", 8))
 
 class Playlist(ctk.CTkFrame):
 
