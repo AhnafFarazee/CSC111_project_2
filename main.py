@@ -3,8 +3,6 @@ from __future__ import annotations
 from tkinter import *
 import customtkinter as ctk
 from api_services.itunes import get_track_summary
-import math
-
 
 from datatypes import *
 from tracks import *
@@ -220,48 +218,59 @@ class MusicFrame(ctk.CTkFrame):
 
 
 class Visualizer(ctk.CTkFrame):
-
-    def __init__(self, master, graph: Graph, **kwargs):
+    def __init__(self, master, graph: PlaylistTree, **kwargs):
         super().__init__(master, **kwargs)
-
-        # stored in id:track pairs
         self.graph = graph
 
-        self.rowconfigure(0, weight=1)
-        self.columnconfigure(0, weight=1)
+        # Create a canvas inside the frame
+        self.canvas = Canvas(self, bg="white")
+        self.canvas.pack(fill=ctk.BOTH, expand=True)
 
+        # Bind resizing event
+        self.bind("<Configure>", self.on_resize)
+
+        # Delay drawing to ensure proper dimensions
+        self.after(100, self.display_graph)
+
+    def on_resize(self, event):
+        """ Redraw the tree when the frame is resized. """
         self.display_graph()
 
     def display_graph(self):
-        """Display the PlaylistGraph on a Tkinter canvas"""
-        canvas = ctk.CTkCanvas(self, bg="white", height=400, width=400)
-        canvas.grid(row=0, column=0, sticky="nsew")
+        """ Clear and redraw the tree. """
+        self.canvas.delete("all")  # Clear previous drawings
 
-        # Retrieve song IDs and connections (edges)
-        song_ids = self.graph.get_song_ids()
-        edges = self.graph.get_connections()
+        if self.graph.is_empty():
+            self.canvas.create_text(
+                self.winfo_width() // 2, 50,
+                text="(Empty Playlist)",
+                font=("Arial", 14, "italic"),
+                fill="gray"
+            )
+            return
 
-        # Calculate positions for the nodes (simple circular layout)
-        num_nodes = len(song_ids)
-        angle_step = 360 / num_nodes
-        positions = {}
+        def draw_tree(node, x, y, dx, depth=0):
+            """ Recursively draw the tree. """
+            if node.is_empty():
+                return
+            
+            self.canvas.create_text(x, y, text=node._info.track_name, font=("Arial", 12, "bold"), fill="black")
+            new_y = y + 50
 
-        for i, song_id in enumerate(song_ids):
-            angle = i * angle_step
-            x = 200 + 100 * math.cos(math.radians(angle))
-            y = 200 + 100 * math.sin(math.radians(angle))
-            positions[song_id] = (x, y)
-            canvas.create_oval(x - 20, y - 20, x + 20, y + 20, fill="lightblue")
-            canvas.create_text(x, y, text=tk.get_track(song_id).track_name)
+            num_subtrees = len(node._subtrees)
+            if num_subtrees > 0:
+                step = dx // num_subtrees if num_subtrees > 1 else dx
+                start_x = x - (dx // 2) if num_subtrees > 1 else x
 
-        # Draw the edges (connections)
-        for edge in edges:
-            song_1, song_2 = edge
-            x1, y1 = positions[song_1]
-            x2, y2 = positions[song_2]
-            canvas.create_line(x1, y1, x2, y2)
+                for i, subtree in enumerate(node._subtrees):
+                    new_x = start_x + i * step
+                    self.canvas.create_line(x, y + 10, new_x, new_y - 10, fill="black")
+                    draw_tree(subtree, new_x, new_y, step // 2, depth + 1)
 
-class Playlist(ctk.CTkFrame):
+        width = self.winfo_width() or 400
+        draw_tree(self.graph, width // 2, 50, width // 2)
+
+class PlaylistFrame(ctk.CTkFrame):
 
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
@@ -269,7 +278,7 @@ class Playlist(ctk.CTkFrame):
 
 
 class App(ctk.CTk):
-    def __init__(self, playlist: PlaylistGraph):
+    def __init__(self, playlist: PlaylistTree):
         super().__init__()
         self.geometry("1200xx900")
         self.minsize(height=400,width=600)
@@ -284,75 +293,100 @@ class App(ctk.CTk):
         self.music_frame.grid(row=0,column=0,sticky="ns", padx=5,pady=5)
 
         self.visualizer = Visualizer(self, graph=playlist)
+        # self.visualizer = ctk.CTkFrame(self)
         self.visualizer.grid(row=0,column=1,sticky="nsew", padx=5,pady=5)
 
-        self.playlist = Playlist(self)
+        self.playlist = PlaylistFrame(self)
         self.playlist.grid(row=0, column=2,sticky="ns", padx=5,pady=5)
 
 
-class PlaylistGraph():
-    """Graph object to store playlist information"""
+class PlaylistTree():
+    """ Object to handle storing storing songs"""
+    _root: Optional[str]
+    _info: Optional[Track]
+    _photo: Optional[PhotoImage]
+    _subtrees: list[PlaylistTree]
 
-    _verticies: dict[str, _Vertex]
+    def __init__(self, root: Optional[str], info: Optional[Track], photo: Optional[PhotoImage]) -> None:
+        self._root = root
+        self._info = info
+        self._photo = photo
+        self._subtrees = []
 
-    def __init__(self):
-        self._verticies = {}
-
-    def attempt_add_song(self, song: Track) -> bool:
-        """Method to attempt to add a song without User's input"""
-        ids_so_far = set()
-
-        for track_id in self._verticies:
-            if tk.get_similarity(track_id, song.track_id) < 0.1:
-                ids_so_far.add(track_id)
-
-        if len(ids_so_far) >= 3:
-            self.add_item(song)
-            for track_id in ids_so_far:
-                self.add_edge(self._verticies[track_id].item, song)
-
+    def is_empty(self) -> bool:
+        """ Return if the tree is empty"""
+        return self._root is None
+    
+    def __len__(self) -> int:
+        """ Return the number of songs stored in the tree"""
+        if self.is_empty():
+            return 0
+        else:
+            size = 1
+            for subtree in self._subtrees:
+                size += subtree.__len__()
+            return size
+        
+    def __contains__(self, item: str) -> bool:
+        if self.is_empty():
+            return False
+        elif self._root == item:
             return True
         else:
+            for subtree in self._subtrees:
+                if subtree.__contains__(item):
+                    return True
             return False
-
-    def add_item(self, song: Track) -> None:
-        if song.track_id not in self._verticies:
-            self._verticies[song.track_id] = _Vertex(song)
-
-    def add_edge(self, song_1: Track, song_2: Track):
-        if song_1.track_id in self._verticies and song_2.track_id in self._verticies:
-            self._verticies[song_1.track_id].neighbours.add(self._verticies[song_2.track_id])
-            self._verticies[song_2.track_id].neighbours.add(self._verticies[song_1.track_id])
+        
+    def remove(self, item: str) -> bool:
+        if self.is_empty():
+            return False
+        elif self._root == item:
+            self._delete_root()
+            return True
         else:
-            raise NameError
+            for subtree in self._subtrees:
+                deleted = subtree.remove(item)
+                
+                if deleted and subtree.is_empty():
+                    self._subtrees.remove(subtree)
+                    return True
+                elif deleted:
+                    return True
+                
+    def _delete_root(self) -> None:
+        if self._subtrees == []:
+            self._root = None
+            self._info = None
+            self._photo = None
+        else:
+            last_subtree = self._subtrees.pop()
+            self._root = last_subtree._root
+            self._info = last_subtree._info
+            self._photo = last_subtree._photo
+            self._subtrees.extend(last_subtree._subtrees)
 
-    def __contains__(self, item: Track) -> bool:
-        return item.track_id in self._verticies
+    def add_subtrees(self, subtrees: list[PlaylistTree]) -> None:
+        self._subtrees.extend(subtrees)
 
-    def get_song_ids(self) -> list[str]:
-        """Return all song IDs in the graph"""
-        return list(self._verticies.keys())
+    def add_song_to_parent(self, item: str, info: Track, photo: PhotoImage, parent: str):
+        """ Add Subtree with information to the specified parent Tree"""
+        if self._root == parent:
+            temp_tree = PlaylistTree(item, info, photo)
+            self._subtrees.append(temp_tree)
+        else:
+            for subtree in self._subtrees:
+                subtree.add_song_to_parent(item, info, photo, parent)
 
-    def get_song_names(self) -> list[str]:
-        return [x.item.track_name for x in self._verticies.values()]
-
-    def get_connections(self):
-        """Return the list of edges (song pairs)"""
-        edges = []
-        for vertex in self._verticies.values():
-            for neighbour in vertex.neighbours:
-                edges.append((vertex.item.track_id, neighbour.item.track_id))
-        return edges
-
-class _Vertex:
-    """Vertex object"""
-    item: Track
-    neighbours: set[_Vertex]
-
-    def __init__(self, item: Track) -> None:
-        self.item = item
-        self.neighbours = set()
-
+    def __str__(self, level=0) -> str:
+        """Return a string representation of the tree."""
+        if self.is_empty():
+            return "(empty playlist)"
+        
+        result = "  " * level + f"- {self._root}\n"
+        for subtree in self._subtrees:
+            result += subtree.__str__(level + 1)
+        return result
 
 from io import BytesIO
 from PIL import Image, ImageTk
@@ -372,18 +406,21 @@ def get_tk_photo(url):
 
 tk = TrackList("dataset.csv")
 pending_songs = []
-playlist = PlaylistGraph()
+filter = set()
+
 
 # temp
 first_track = tk.get_track("22UDw8rSfLbUsaAGTXQ4Z8")
-playlist.add_item(first_track)
+playlist = PlaylistTree(first_track.track_id, first_track, None)
 temp_list = tk.find_multiple_similar(first_track.track_id, 5)
 for item in temp_list:
     pending_songs.append((first_track, item))
+    filter.add(item.track_name)
 
 app = App(playlist)
 # app.mainloop()
 app.update()
+
 while True:
     root_song, curr_song = pending_songs.pop(0)
 
@@ -396,22 +433,20 @@ while True:
         root_song, curr_song = pending_songs.pop(0)
         song_info = get_track_summary(curr_song.artists, curr_song.track_name)
 
+    # regex, list of songs that have been
+
     song_photo = get_tk_photo(song_info["artwork"])
 
     # confirmation = app.music_frame.user_input(curr_song.track_name, song_photo, curr_song.artists)
     confirmation = app.music_frame.user_input(curr_song.track_name, song_photo, curr_song.artists, song_info)
     if confirmation:
-        playlist.add_item(curr_song)
-        playlist.add_edge(curr_song, root_song)
+        playlist.add_song_to_parent(curr_song.track_id, curr_song, song_photo, root_song.track_id)
 
         new_songs = tk.find_multiple_similar(curr_song.track_id, 10)
 
         for song in new_songs:
-            if song not in playlist:
-                if not playlist.attempt_add_song(song):
-                    pending_songs.append((curr_song, song))
-
-    pending_songs = [x for x in pending_songs if x[1] not in playlist]
+            if song not in playlist and song.track_name not in filter:
+                pending_songs.append((curr_song, song))
 
     app.visualizer.display_graph()
 
