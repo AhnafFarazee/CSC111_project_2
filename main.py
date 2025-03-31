@@ -29,7 +29,7 @@ class _Individual_Choice(ctk.CTkFrame):
 
 class MusicFrame(ctk.CTkFrame):
     """
-    Music Frame to handle user choice regarding which songs are acceptable and not acceptable
+    Frame to handle user choice regarding which songs are acceptable and not acceptable
 
     Attributes:
     _confirm: boolean to confirm if user accepts or denies the song
@@ -223,7 +223,7 @@ class Visualizer(ctk.CTkFrame):
         self.graph = graph
 
         # Create a canvas inside the frame
-        self.canvas = Canvas(self, bg="white")
+        self.canvas = ctk.CTkCanvas(self, bg="white")
         self.canvas.pack(fill=ctk.BOTH, expand=True)
 
         # Bind resizing event
@@ -248,12 +248,12 @@ class Visualizer(ctk.CTkFrame):
                 fill="gray"
             )
             return
-
+        
         def draw_tree(node, x, y, dx, depth=0):
             """ Recursively draw the tree. """
             if node.is_empty():
                 return
-
+            
             self.canvas.create_text(x, y, text=node._info.track_name, font=("Arial", 12, "bold"), fill="black")
             new_y = y + 50
 
@@ -317,7 +317,7 @@ class PlaylistTree():
     def is_empty(self) -> bool:
         """ Return if the tree is empty"""
         return self._root is None
-
+    
     def __len__(self) -> int:
         """ Return the number of songs stored in the tree"""
         if self.is_empty():
@@ -327,7 +327,7 @@ class PlaylistTree():
             for subtree in self._subtrees:
                 size += subtree.__len__()
             return size
-
+        
     def __contains__(self, item: str) -> bool:
         if self.is_empty():
             return False
@@ -338,7 +338,7 @@ class PlaylistTree():
                 if subtree.__contains__(item):
                     return True
             return False
-
+        
     def remove(self, item: str) -> bool:
         if self.is_empty():
             return False
@@ -348,13 +348,13 @@ class PlaylistTree():
         else:
             for subtree in self._subtrees:
                 deleted = subtree.remove(item)
-
+                
                 if deleted and subtree.is_empty():
                     self._subtrees.remove(subtree)
                     return True
                 elif deleted:
                     return True
-
+                
     def _delete_root(self) -> None:
         if self._subtrees == []:
             self._root = None
@@ -383,8 +383,8 @@ class PlaylistTree():
         """Return a string representation of the tree."""
         if self.is_empty():
             return "(empty playlist)"
-
-        result = "  " * level + f"- {self._root}\n"
+        
+        result = "  " * level + f"- {self._photo}\n"
         for subtree in self._subtrees:
             result += subtree.__str__(level + 1)
         return result
@@ -445,11 +445,23 @@ while True:
 
         new_songs = tk.find_multiple_similar(curr_song.track_id, 10)
 
-        for song in new_songs:
+        confirmed_songs = new_songs[:6]
+        add_pending_songs = new_songs[6:]
+
+        for song in new_songs[:6]:
+            if song not in playlist and song.track_name not in filter:
+                playlist.add_song_to_parent(song.track_id, song, None, curr_song.track_id)
+                filter.add(song.track_name)
+                app.playlist.update()
+
+        for song in new_songs[6:]:
             if song not in playlist and song.track_name not in filter:
                 pending_songs.append((curr_song, song))
+                filter.add(song.track_name)
 
     app.visualizer.display_graph()
 
     app.update()
+
+    print(str(playlist))
 
