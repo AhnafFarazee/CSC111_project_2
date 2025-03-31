@@ -1,8 +1,10 @@
 """
-Includes functions for finding tracks.
+Contains one Object, the TrackList object
+TrackList is used to interact with a dataset.
 """
 from __future__ import annotations
 import csv
+
 
 from datatypes import Track
 
@@ -14,16 +16,19 @@ class TrackList:
 
     Overview:
 
-    .get_track(track_id) : Return Track object associated with ID
-    .find_similar(track_id) : Return Track object that is closes to the Track associated with ID
-    .find_multiple_similar(track_id, count) Return list of size 'count' of Track objects close
+    self.get_track(track_id) : Return Track object associated with ID
+    self.find_similar(track_id) : Return Track object that is closes to the Track associated with ID
+    self.find_multiple_similar(track_id, count) Return list of size 'count' of Track objects close
                                             close to the Track associated with ID
 
-
+                                            
+    attributes:
+     - _tracks : maps id to Track objects (Track objects hold metadata about the song such as artist, track name and album)
+     - _algorithm : Search algorithm used to find similar tracks to input ID
     """
 
     _tracks: dict[str, Track]
-    _algorithm: _Brute_Force
+    _algorithm: _KDTree
 
     def __init__(self, dataset: str) -> None:
         """
@@ -52,7 +57,7 @@ class TrackList:
                     float(track[16]), # livevness
                     float(track[17]) # valence
                     )
-
+                
                 track_points[track[1]] = track_point
                 
                 #Left out key, mode, tempo and time signature as currently we do not need it.
@@ -69,7 +74,7 @@ class TrackList:
 
                 self._tracks[track[1]] = new_track
 
-        self._algorithm = _Brute_Force(track_points)
+        self._algorithm = _KDTree(track_points)
 
     def get_track(self, track_id: str) -> Track:
         """
@@ -83,13 +88,7 @@ class TrackList:
             return None
         
     def get_similarity(self, track_id1: str, track_id2: str) -> float:
-        if track_id1 in self._tracks and track_id2 in self._tracks:
-            point1 = self._algorithm.get_point(track_id1)
-            point2 = self._algorithm.get_point(track_id2)
-        else:
-            raise NameError
-        
-        return point1.euclidiean_distance(point2)
+        raise NotImplementedError
         
 
         
@@ -99,15 +98,14 @@ class TrackList:
         """
         point = self._algorithm.get_point(track_id)
 
-        similar_id = self._algorithm.find_similar(point)
-        print(similar_id)
+        similar_id = self._algorithm.nearest_neighbour(point)
 
         return self.get_track(similar_id)
     
     def find_multiple_similar(self, track_id: str, count: int) -> list[Track]:
         point = self._algorithm.get_point(track_id)
 
-        similar_ids = self._algorithm.find_multiple_similar(point, count)
+        similar_ids = self._algorithm.n_nearest_neighbours(point, count)
 
         return [self.get_track(id) for id in similar_ids]
 
@@ -115,8 +113,122 @@ class TrackList:
     def add_track(self, Track):
         raise NotImplementedError
 
+
+    
+
+class KDNode:
+    """ One Node in a KD-Tree
+    
+    attributes:
+     - point : tuple holding values of a song as vector points
+     - label : id of the song references
+     - left : KDNode to the 'left' compared with a specific dimension
+     - right : KDNode to the 'right' compared with a specific dimension
+    """
+    def __init__(self, point:tuple[float], label:str=None, left:KDNode=None, right:KDNode=None):
+        self.point = point
+        self.label = label
+        self.left = left
+        self.right = right
+
+class _KDTree:
+    """ KD-Tree implementation to attempt to search for similar points
+    
+    attributes:
+     - data : Dictionary mapping id to vector points
+     - root : First node of the Tree
+    """
+    def __init__(self, data):
+        self.data = data
+        points = [(key, value) for key, value in data.items()]
+        self.root = self._build_tree(points, depth=0)
+
+    def get_point(self, id) -> tuple[float]:
+        """ Return vector related to id, or None if ID is not valid"""
+        if id in self.data:
+            return self.data[id]
+        else:
+            return None
+    
+    def _build_tree(self, points, depth):
+        """ Build KDTree, recursively"""
+        if not points:
+            return None
+        
+        k = len(points[0][1])  # Dimension of data
+        axis = depth % k
+        
+        points.sort(key=lambda x: x[1][axis])
+        median = len(points) // 2
+        
+        return KDNode(
+            point=points[median][1],
+            label=points[median][0],
+            left=self._build_tree(points[:median], depth + 1),
+            right=self._build_tree(points[median + 1:], depth + 1)
+        )
+    
+    def nearest_neighbour(self, target) -> str:
+        """ Return id of KDTree point with vectors closest to target vector"""
+        def _nn(node, depth, best):
+            if node is None:
+                return best
+            
+            k = len(target)
+            axis = depth % k
+            
+            next_best = best
+            dist_sq = sum((node.point[i] - target[i]) ** 2 for i in range(k))
+            if best is None or dist_sq < best[1]:
+                next_best = (node.label, dist_sq)
+            
+            next_branch = node.left if target[axis] < node.point[axis] else node.right
+            alt_branch = node.right if target[axis] < node.point[axis] else node.left
+            
+            next_best = _nn(next_branch, depth + 1, next_best)
+            if abs(node.point[axis] - target[axis]) ** 2 < next_best[1]:
+                next_best = _nn(alt_branch, depth + 1, next_best)
+            
+            return next_best
+        
+        return _nn(self.root, 0, None)[0]
+    
+    def n_nearest_neighbours(self, target: tuple[float], n: int) -> list[str]:
+        """ Return list of id's of the n closest vectors to target vector"""
+        neighbors = []
+        
+        def _search(node, depth):
+            if node is None:
+                return
+            
+            k = len(target)
+            axis = depth % k
+            
+            dist_sq = sum((node.point[i] - target[i]) ** 2 for i in range(k))
+            
+            if len(neighbors) < n:
+                neighbors.append((node.label, dist_sq))
+                neighbors.sort(key=lambda x: x[1])
+            elif dist_sq < neighbors[-1][1]:
+                neighbors[-1] = (node.label, dist_sq)
+                neighbors.sort(key=lambda x: x[1])
+            
+            next_branch = node.left if target[axis] < node.point[axis] else node.right
+            alt_branch = node.right if target[axis] < node.point[axis] else node.left
+            
+            _search(next_branch, depth + 1)
+            if abs(node.point[axis] - target[axis]) ** 2 < neighbors[-1][1]:
+                _search(alt_branch, depth + 1)
+        
+        _search(self.root, 0)
+        return [label for label, x in neighbors]
+    
+
 class _Brute_Force:
     """
+    [Depreciated]
+    Not in use anymore, but we keep it for testing/fallback in case kdTree fails to work
+
     This object is to brute force to find similar tracks
     """
 
@@ -168,11 +280,7 @@ class _Brute_Force:
         sorted_list = sorted(distance_dict, key = lambda k:distance_dict[k])
 
         return sorted_list[:count]
-
-
-
-
-
+    
 
 class _Point:
     """Helper object to represent one vector point, used in _KdTree"""
@@ -205,48 +313,10 @@ class _Point:
         
         return sum_so_far ** 0.5
 
-
-
 if __name__ == "__main__":
-    point_a = _Point((2, 3, 2, 8, 4, 4, 7, 6), "a")
-    point_b = _Point((9, 0, 5, 0, 3, 8, 7, 9), "b")
-    test_points_1 = [_Point((2, 3, 2, 8, 4, 4, 7, 6), "a"),
-                   _Point((9, 0, 5, 0, 3, 8, 7, 9), "b"),
-                   _Point((3, 0, 4, 3, 2, 0, 8, 1), "c"),
-                   _Point((6, 0, 1, 5, 8, 9, 1, 2), "d"),
-                   _Point((5, 9, 8, 2, 8, 7, 4, 9), "e"),
-                   _Point((7, 6, 1, 5, 8, 5, 9, 1), "f"),]
-    
-    test_points_2 = [_Point((2, 3, 2, 8, 4, 4, 7, 6), "a"),
-                   _Point((9, 0, 5, 0, 3, 8, 7, 9), "b"),
-                   _Point((3, 0, 4, 3, 2, 0, 8, 1), "c")]
-    
-    test_points_3 = [_Point((1, 0, 0), "x"),
-                     _Point((0, 1, 0), "y"),
-                     _Point((0, 0, 1), "z")]
-    
-
-
-
     tk = TrackList("dataset.csv")
 
-    bruh = tk._algorithm.get_point("29RiulWABWHcTRLkDqVCl1")
+    my_list = tk.find_multiple_similar("29RiulWABWHcTRLkDqVCl1", 15)
 
-    bruh2 = tk.find_multiple_similar("29RiulWABWHcTRLkDqVCl1", 15)
-
-    print("29RiulWABWHcTRLkDqVCl1" == "29RiulWABWHcTRLkDqVCl1")
-
-    for i in range(len(bruh2)):
-        print(i, " : ", bruh2[i].track_name, ":", (bruh.euclidiean_distance(tk._algorithm.get_point(bruh2[i].track_id))))
-
-    print(bruh.euclidiean_distance(tk._algorithm.get_point(bruh2[-1].track_id)))
-
-    print("bruh 2.5")
-
-    print(tk.get_track("5waHhqlk8iTweFuHeZz9CZ"))
-
-    # print(test_tree._sort_points(0, test_points_2))
-    # print("-" * 60)
-    # print(test_tree._sort_points(1, test_points_2))
-    # print("-" * 60)
-    # print(test_tree._sort_points(2, test_points_2))
+    for i in range(len(my_list)):
+        print(i, " : ", my_list[i].track_name)

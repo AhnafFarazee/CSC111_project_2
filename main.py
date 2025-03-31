@@ -242,7 +242,7 @@ class Visualizer(ctk.CTkFrame):
             start_color = (255, 0, 0)  # Red
             end_color = (0, 0, 255)    # Blue
 
-            factor = depth / 5
+            factor = depth / 10
             r = int(start_color[0] * (1 - factor) + end_color[0] * factor)
             g = int(start_color[1] * (1 - factor) + end_color[1] * factor)
             b = int(start_color[2] * (1 - factor) + end_color[2] * factor)
@@ -501,6 +501,8 @@ def get_tk_photo(url: str) -> ctk.CTkImage:
 tk = TrackList("dataset.csv")
 pending_songs = []
 filter = set()
+
+# mutable object To easy quit out of app
 app_ongoing = [True]
 
 
