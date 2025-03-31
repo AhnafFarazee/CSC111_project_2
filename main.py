@@ -7,7 +7,7 @@ and organizes songs into a tree-based playlist structure.
 from __future__ import annotations
 from tkinter import *
 import customtkinter as ctk
-from api_services.itunes import get_track_summary
+from itunes import get_track_summary
 
 from datatypes import *
 from tracks import *
@@ -530,66 +530,67 @@ def get_tk_photo(url: str) -> ctk.CTkImage:
     ctk_image = ctk.CTkImage(light_image=image, size=(100, 100))
     return ctk_image
 
-tk = TrackList("dataset.csv")
-pending_songs = []
-filter = set()
+if __name__ == "__main__":
+    tk = TrackList("dataset.csv")
+    pending_songs = []
+    filter = set()
 
-# mutable object To easy quit out of app
-app_ongoing = [True]
+    # mutable object To easy quit out of app
+    app_ongoing = [True]
 
 
-# Initialization, done in terminal
-first_id = input("Enter the starting track id: ")
-first_track = tk.get_track(first_id)
-playlist = PlaylistTree(first_track.track_id, first_track, None)
-temp_list = tk.find_multiple_similar(first_track.track_id, 5)
-for item in temp_list:
-    pending_songs.append((first_track, item))
-    filter.add(item.track_name)
+    # Initialization, done in terminal
+    first_id = input("Enter the starting track id: ")
+    first_track = tk.get_track(first_id)
+    playlist = PlaylistTree(first_track.track_id, first_track, None)
+    temp_list = tk.find_multiple_similar(first_track.track_id, 5)
+    for item in temp_list:
+        pending_songs.append((first_track, item))
+        filter.add(item.track_name)
 
-app = App(playlist, app_ongoing)
-app.update()
-
-while app_ongoing[0]:
-    root_song, curr_song = pending_songs.pop(0)
-
-    song_info = get_track_summary(curr_song.artists, curr_song.track_name)
-
-    while song_info == {}:         #recommend new song if itunes cannot find this one
-
-        root_song, curr_song = pending_songs.pop(0)
-        song_info = get_track_summary(curr_song.artists, curr_song.track_name)
-
-    song_photo = get_tk_photo(song_info["artwork"])
-
-    confirmation = app.music_frame.user_input(curr_song.track_name, song_photo, curr_song.artists, song_info)
-    if confirmation:
-        playlist.add_song_to_parent(curr_song.track_id, curr_song, song_photo, root_song.track_id)
-
-        new_songs = tk.find_multiple_similar(curr_song.track_id, 7)
-
-        for song in new_songs[:3]:
-            if song not in playlist and song.track_name not in filter:
-                playlist.add_song_to_parent(song.track_id, song, None, curr_song.track_id)
-                filter.add(song.track_name)
-                app.playlist.update()
-
-        for song in new_songs[3:]:
-            if song not in playlist and song.track_name not in filter:
-                pending_songs.append((curr_song, song))
-                filter.add(song.track_name)
-
-    app.visualizer.display_graph()
-
+    app = App(playlist, app_ongoing)
     app.update()
 
-    if len(pending_songs) < 3:
-        app_ongoing[0] = False
+    while app_ongoing[0]:
+        root_song, curr_song = pending_songs.pop(0)
 
-print("-" * 120)
-print("Final Playlist: ")
-i = 0
-for track in playlist.get_all_tracks():
-    i += 1
-    print(f"{i} - {track.track_name}")
+        song_info = get_track_summary(curr_song.artists, curr_song.track_name)
+
+        while song_info == {}:         #recommend new song if itunes cannot find this one
+
+            root_song, curr_song = pending_songs.pop(0)
+            song_info = get_track_summary(curr_song.artists, curr_song.track_name)
+
+        song_photo = get_tk_photo(song_info["artwork"])
+
+        confirmation = app.music_frame.user_input(curr_song.track_name, song_photo, curr_song.artists, song_info)
+        if confirmation:
+            playlist.add_song_to_parent(curr_song.track_id, curr_song, song_photo, root_song.track_id)
+
+            new_songs = tk.find_multiple_similar(curr_song.track_id, 7)
+
+            for song in new_songs[:3]:
+                if song not in playlist and song.track_name not in filter:
+                    playlist.add_song_to_parent(song.track_id, song, None, curr_song.track_id)
+                    filter.add(song.track_name)
+                    app.playlist.update()
+
+            for song in new_songs[3:]:
+                if song not in playlist and song.track_name not in filter:
+                    pending_songs.append((curr_song, song))
+                    filter.add(song.track_name)
+
+        app.visualizer.display_graph()
+
+        app.update()
+
+        if len(pending_songs) < 3:
+            app_ongoing[0] = False
+
+    print("-" * 120)
+    print("Final Playlist: ")
+    i = 0
+    for track in playlist.get_all_tracks():
+        i += 1
+        print(f"{i} - {track.track_name}")
 
