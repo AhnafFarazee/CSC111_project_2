@@ -1,4 +1,9 @@
-"""The main body of the python program"""
+"""The main body of the python program.
+
+This module sets up the graphical user interface (GUI) for a music playlist generator.
+It uses CustomTkinter for UI components, retrieves song information via an external API,
+and organizes songs into a tree-based playlist structure.
+"""
 from __future__ import annotations
 from tkinter import *
 import customtkinter as ctk
@@ -24,6 +29,12 @@ class MusicFrame(ctk.CTkFrame):
     _confirm: Optional[bool]
 
     def __init__(self, master, **kwargs):
+        """
+        Initialize the MusicFrame widget and set up its layout.
+
+        Preconditions:
+            - master is a valid Tkinter widget.
+        """
         super().__init__(master, **kwargs)
         self.grid_propagate(False)
 
@@ -73,15 +84,18 @@ class MusicFrame(ctk.CTkFrame):
         self.confirm_button.grid(row=4, column=2, sticky="nsew", padx=5, pady=5)
 
     def _confirm_song(self) -> None:
-        """ Helper to confirm the current song"""
+        """
+        Confirm the current song selection.
+        """
         self.stop_audio()
         self._confirm = True
 
     def _deny_song(self) -> None:
-        """ Helper to deny the current song"""
+        """
+        Deny the current song selection.
+        """
         self.stop_audio()
         self._confirm = False
-
 
     def play_pause(self) -> None:
         """ Play or pause the current song"""
@@ -216,7 +230,6 @@ class Visualizer(ctk.CTkFrame):
     attributes:
      - playlist : PlaylistTree object that holds all the songs in the tree
      - canvas : Displays a visual aid of the playlist
-
     """
     def __init__(self, master, playlist: PlaylistTree, **kwargs):
         super().__init__(master, **kwargs)
@@ -236,7 +249,7 @@ class Visualizer(ctk.CTkFrame):
     def display_graph(self):
         """ Clear and redraw the tree. """
         self.canvas.delete("all")
-        
+
         def interpolate_color(depth):
             """ Interpolate between two colors based on depth (gradient). """
             start_color = (255, 0, 0)  # Red
@@ -257,13 +270,13 @@ class Visualizer(ctk.CTkFrame):
             """ Recursively draw the tree with colored circles (gradient). """
             if node.is_empty():
                 return
-            
+
             color = interpolate_color(depth)
-            
+
             radius = get_circle_radius()
-            
+
             self.canvas.create_oval(x - radius, y - radius, x + radius, y + radius, fill=color, outline="black")
-            
+
             new_y = y + 50 + radius
 
             num_subtrees = len(node._subtrees)
@@ -279,13 +292,13 @@ class Visualizer(ctk.CTkFrame):
         width = self.winfo_width() or 400
         draw_tree(self.playlist, width // 2, 50, width // 2)
 
+
 class PlaylistFrame(ctk.CTkFrame):
     """ Frame to handle displaying the playlist to the user
-    
+
     attributes:
      - playlist : PlaylistTree object that stores the playlist so far
      - my_list : mutable object to help terminate program properly
-
      - title : Shows the size of the playlist
      - list : Shows the songs within the playlist
 
@@ -294,6 +307,9 @@ class PlaylistFrame(ctk.CTkFrame):
     """
 
     def __init__(self, master, playlist: PlaylistTree, my_list: list[bool], **kwargs):
+        """
+        Initialize the PlaylistFrame.
+        """
         super().__init__(master, **kwargs)
         self.playlist = playlist
         self.my_list = my_list
@@ -307,7 +323,7 @@ class PlaylistFrame(ctk.CTkFrame):
 
         self.list = _ScrollingListFrame(self, self.playlist.get_all_tracks())
         self.list.grid(row = 1, column = 0)
-        
+
         self.button = ctk.CTkButton(self, text="Stop Generating", bg_color="red", command=self.stop_app)
         self.button.grid(row = 2, column = 0)
 
@@ -323,16 +339,17 @@ class PlaylistFrame(ctk.CTkFrame):
         self.list = _ScrollingListFrame(self, self.playlist.get_all_tracks())
         self.list.grid(row = 1, column = 0)
 
+
 class _ScrollingListFrame(ctk.CTkFrame):
     """ Helper Frame to display the playlist, in a scrollable fashion"""
 
     def __init__(self, master, items: list[Track], **kwargs):
         super().__init__(master, **kwargs)
-        
+
         self.canvas = ctk.CTkCanvas(self, bg =  "gray22")
         self.scrollbar = ctk.CTkScrollbar(self, orientation="vertical", command=self.canvas.yview)
         self.scrollable_frame = ctk.CTkFrame(self.canvas)  # A frame to hold the list items
-        
+
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
 
         self.canvas.grid(row=0, column=0, sticky="nsew")
@@ -342,7 +359,7 @@ class _ScrollingListFrame(ctk.CTkFrame):
         self.create_item_list(items)
 
         self.scrollable_frame.bind(
-            "<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+            "<Configure>", lambda x: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         )
 
     def create_item_list(self, items: list[Track]):
@@ -362,9 +379,12 @@ class App(ctk.CTk):
      - music_frame : Frame to handle user decisions about songs
      - visualizer : Frame to display the tree
      - playlist : Frame to display all the songs added so far
-    
+
     """
     def __init__(self, playlist: PlaylistTree, my_list: list[bool]):
+        """
+        Initialize the main application window.
+        """
         super().__init__()
         self.geometry("1200xx900")
         self.minsize(height=400,width=600)
@@ -386,7 +406,18 @@ class App(ctk.CTk):
 
 
 class PlaylistTree():
-    """ Object to handle storing storing songs in a playlist"""
+    """
+    Tree structure to store songs in a playlist.
+
+    Attributes:
+        _root: Unique identifier of the root song; if None, the tree is empty.
+        _info: The Track object associated with the root.
+        _photo: Optional image associated with the root song.
+        _subtrees: List of child PlaylistTree nodes.
+    Representation Invariants:
+        - If _root is None, then _info and _photo must also be None and _subtrees is empty.
+        - _subtrees contains only PlaylistTree instances.
+    """
     _root: Optional[str]
     _info: Optional[Track]
     _photo: Optional[PhotoImage]
@@ -401,7 +432,7 @@ class PlaylistTree():
     def is_empty(self) -> bool:
         """ Return if the tree is empty"""
         return self._root is None
-    
+
     def __len__(self) -> int:
         """ Return the number of songs stored in the tree"""
         if self.is_empty():
@@ -411,7 +442,7 @@ class PlaylistTree():
             for subtree in self._subtrees:
                 size += subtree.__len__()
             return size
-        
+
     def __contains__(self, item: str) -> bool:
         """ Return if item is contained within the tree"""
         if self.is_empty():
@@ -423,7 +454,7 @@ class PlaylistTree():
                 if subtree.__contains__(item):
                     return True
             return False
-        
+
     def remove(self, item: str) -> bool:
         """ Remove node with item from the tree"""
         if self.is_empty():
@@ -434,13 +465,13 @@ class PlaylistTree():
         else:
             for subtree in self._subtrees:
                 deleted = subtree.remove(item)
-                
+
                 if deleted and subtree.is_empty():
                     self._subtrees.remove(subtree)
                     return True
                 elif deleted:
                     return True
-                
+
     def _delete_root(self) -> None:
         """ Delete self from the tree, and fix tree as appropriate"""
         if self._subtrees == []:
@@ -471,23 +502,24 @@ class PlaylistTree():
         """Return a string representation of the tree."""
         if self.is_empty():
             return "(empty playlist)"
-        
+
         result = "  " * level + f"- {self._photo}\n"
         for subtree in self._subtrees:
             result += subtree.__str__(level + 1)
         return result
-    
+
     def get_all_tracks(self) -> list[Track]:
         """Return a list containing all Track objects in the tree."""
         if self.is_empty():
             return []
-        
+
         items = [self._info]
 
         for subtree in self._subtrees:
             items.extend(subtree.get_all_tracks())
 
         return items
+
 
 def get_tk_photo(url: str) -> ctk.CTkImage:
     """Fetch an image from a URL and return a CustomTkinter-compatible CTkImage."""
