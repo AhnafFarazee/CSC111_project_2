@@ -5,17 +5,21 @@ It uses CustomTkinter for UI components, retrieves song information via an exter
 and organizes songs into a tree-based playlist structure.
 """
 from __future__ import annotations
+import requests
+import io
+from io import BytesIO
+import threading
+
+
 from tkinter import *
 import customtkinter as ctk
-from itunes import get_track_summary
 
+from itunes import get_track_summary
 from datatypes import *
 from tracks import *
 
-
-from io import BytesIO
 from PIL import Image
-import requests
+import pyglet
 
 
 class MusicFrame(ctk.CTkFrame):
@@ -132,10 +136,6 @@ class MusicFrame(ctk.CTkFrame):
         """Load and play audio from the given URL"""
 
         def audio_thread():
-            import pyglet
-            import requests
-            import io
-
             print(f"Playing audio from: {url}")
 
             try:
@@ -170,7 +170,6 @@ class MusicFrame(ctk.CTkFrame):
                 self.is_playing = False
 
         # Run in a separate thread to avoid blocking the UI
-        import threading
         self.player_thread = threading.Thread(target=audio_thread)
         self.player_thread.daemon = True
         self.player_thread.start()
