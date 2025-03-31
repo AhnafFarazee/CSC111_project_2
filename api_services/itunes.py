@@ -8,6 +8,8 @@ def get_track_summary(artist: str, title: str) -> dict:
     """Returns a dictionary with song details based on title and artist search.
     Returns an empty dictionary if there is an error finding the song."""
 
+    keys = ["trackName", "artistName", "collectionName", "previewUrl", "artworkUrl100"]
+
     query = f"{artist} {title}".replace(" ", "+")
     url = f"https://itunes.apple.com/search?term={query}&entity=song&limit=1"
 
@@ -16,13 +18,14 @@ def get_track_summary(artist: str, title: str) -> dict:
         results = response.json().get("results", [])
         if results:
             track_data = results[0]
-            return {
-                "name": track_data['trackName'],
-                "artist": track_data['artistName'],
-                "album_name": track_data['collectionName'],
-                "audio_url": track_data['previewUrl'],
-                "artwork": track_data['artworkUrl100']
-            }
+            if all(key in track_data for key in keys):
+                return {
+                    "name": track_data['trackName'],
+                    "artist": track_data['artistName'],
+                    "album_name": track_data['collectionName'],
+                    "audio_url": track_data['previewUrl'],
+                    "artwork": track_data['artworkUrl100']
+                }
 
     return {}
 
