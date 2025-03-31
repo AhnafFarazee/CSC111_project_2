@@ -3,45 +3,22 @@ from __future__ import annotations
 from tkinter import *
 import customtkinter as ctk
 from api_services.itunes import get_track_summary
-import random
 
 from datatypes import *
 from tracks import *
 
 
 from io import BytesIO
-from PIL import Image, ImageTk
-# from pillow
+from PIL import Image
 import requests
-import customtkinter as ctk
-
-
-class InitialChoice(ctk.CTkFrame):
-    _choices: dict[str, bool]
-
-    def __init__(self, master):
-        super.__init__(master)
-
-    def confirm(self) -> list[str]:
-        pass
-
-class _Individual_Choice(ctk.CTkFrame):
-    def __init__(self, master, image: PhotoImage, title:str, command: callable, **kwargs):
-        super.__init__(master, **kwargs)
-
-        self.image = ctk.CTkLabel(self, image = image, text="")
-        self.image.grid(row=0, column=1)
-
-        self.button = ctk.CTkButton(self, text=title, command=command)
-        self.butt.grid(row=1, column = 0)
 
 
 class MusicFrame(ctk.CTkFrame):
     """
-    Frame to handle user choice regarding which songs are acceptable and not acceptable
+    Frame to handle user choice regarding which songs are accepted and denied
 
     Attributes:
-    _confirm: boolean to confirm if user accepts or denies the song
+     - _confirm: boolean to confirm if user accepts or denies the song
     """
 
     _confirm: Optional[bool]
@@ -96,16 +73,18 @@ class MusicFrame(ctk.CTkFrame):
         self.confirm_button.grid(row=4, column=2, sticky="nsew", padx=5, pady=5)
 
     def _confirm_song(self) -> None:
+        """ Helper to confirm the current song"""
         self.stop_audio()
         self._confirm = True
 
     def _deny_song(self) -> None:
+        """ Helper to deny the current song"""
         self.stop_audio()
         self._confirm = False
 
 
     def play_pause(self) -> None:
-        """Play or pause the current song"""
+        """ Play or pause the current song"""
         # Check if we have song info with an audio URL
         if not hasattr(self,
                        'current_song_info') or not self.current_song_info or "audio_url" not in self.current_song_info:
@@ -193,6 +172,8 @@ class MusicFrame(ctk.CTkFrame):
         self.song_link.configure(text="play")
 
     def _update_current_song(self, title: str, image: PhotoImage, artists: str) -> None:
+        """ Update the widget to display information about the new song"""
+
         self.song_title.configure(text=title)
         self.song_title.grid(row=1, column=0, columnspan=3, sticky="ew")
 
@@ -206,6 +187,8 @@ class MusicFrame(ctk.CTkFrame):
         self.song_link.configure(text="play")
 
     def user_input(self, title: str, image, artists: str, song_info=None) -> bool:
+        """ Return if user likes/dislikes the song"""
+
         # Store the song info for the play button to use
         self.current_song_info = song_info
 
@@ -227,18 +210,23 @@ class MusicFrame(ctk.CTkFrame):
 
 
 class Visualizer(ctk.CTkFrame):
-    def __init__(self, master, graph: PlaylistTree, **kwargs):
-        super().__init__(master, **kwargs)
-        self.graph = graph
+    """
+    Frame to visualize the user's playlist.
 
-        # Create a canvas inside the frame
+    attributes:
+     - playlist : PlaylistTree object that holds all the songs in the tree
+     - canvas : Displays a visual aid of the playlist
+
+    """
+    def __init__(self, master, playlist: PlaylistTree, **kwargs):
+        super().__init__(master, **kwargs)
+        self.playlist = playlist
+
         self.canvas = ctk.CTkCanvas(self, bg="gray22", bd = 0)
         self.canvas.pack(fill=ctk.BOTH, expand=True)
-
-        # Bind resizing event
         self.bind("<Configure>", self.on_resize)
 
-        # Delay drawing to ensure proper dimensions
+        # Making the dimensions fit properly
         self.after(100, self.display_graph)
 
     def on_resize(self, event):
@@ -247,16 +235,14 @@ class Visualizer(ctk.CTkFrame):
 
     def display_graph(self):
         """ Clear and redraw the tree. """
-        self.canvas.delete("all")  # Clear previous drawings
+        self.canvas.delete("all")
         
         def interpolate_color(depth):
             """ Interpolate between two colors based on depth (gradient). """
-            # Define the start and end color for the gradient (Hue changes as depth increases)
             start_color = (255, 0, 0)  # Red
             end_color = (0, 0, 255)    # Blue
-            
-            # Interpolate between start_color and end_color
-            factor = depth / 10  # Divide by the max depth you want for color change
+
+            factor = depth / 5
             r = int(start_color[0] * (1 - factor) + end_color[0] * factor)
             g = int(start_color[1] * (1 - factor) + end_color[1] * factor)
             b = int(start_color[2] * (1 - factor) + end_color[2] * factor)
@@ -265,23 +251,20 @@ class Visualizer(ctk.CTkFrame):
 
         def get_circle_radius():
             """ Set a fixed size for all circles. """
-            return 10  # Fixed radius for all circles
+            return 10 # makes it standard across the Tree
 
-        def draw_tree(node, x, y, dx, depth=0):
+        def draw_tree(node: PlaylistTree, x: int, y: int, dx: float, depth=0):
             """ Recursively draw the tree with colored circles (gradient). """
             if node.is_empty():
                 return
             
-            # Get the color for the circle based on the current depth
             color = interpolate_color(depth)
             
-            # Get the fixed radius for the circle
             radius = get_circle_radius()
             
-            # Create a circle instead of text
             self.canvas.create_oval(x - radius, y - radius, x + radius, y + radius, fill=color, outline="black")
             
-            new_y = y + 50 + radius  # Increase the space between nodes (considering radius)
+            new_y = y + 50 + radius
 
             num_subtrees = len(node._subtrees)
             if num_subtrees > 0:
@@ -294,24 +277,46 @@ class Visualizer(ctk.CTkFrame):
                     draw_tree(subtree, new_x, new_y, step // 2, depth + 1)
 
         width = self.winfo_width() or 400
-        draw_tree(self.graph, width // 2, 50, width // 2)
+        draw_tree(self.playlist, width // 2, 50, width // 2)
 
 class PlaylistFrame(ctk.CTkFrame):
+    """ Frame to handle displaying the playlist to the user
+    
+    attributes:
+     - playlist : PlaylistTree object that stores the playlist so far
+     - my_list : mutable object to help terminate program properly
 
-    def __init__(self, master, playlist: PlaylistTree, **kwargs):
+     - title : Shows the size of the playlist
+     - list : Shows the songs within the playlist
+
+    representation invariants:
+     - len(self.my_list) == 1
+    """
+
+    def __init__(self, master, playlist: PlaylistTree, my_list: list[bool], **kwargs):
         super().__init__(master, **kwargs)
         self.playlist = playlist
+        self.my_list = my_list
 
         self.rowconfigure(0, weight=1)
         self.rowconfigure(1, weight=10)
+        self.rowconfigure(2, weight=1)
 
         self.title = ctk.CTkLabel(self, text=f"playlist: {len(playlist)}", width = 200)
         self.title.grid(row = 0, column = 0)
 
         self.list = _ScrollingListFrame(self, self.playlist.get_all_tracks())
         self.list.grid(row = 1, column = 0)
+        
+        self.button = ctk.CTkButton(self, text="Stop Generating", bg_color="red", command=self.stop_app)
+        self.button.grid(row = 2, column = 0)
 
-    def update(self):
+    def stop_app(self) -> None:
+        """ Function to terminate the program successfully"""
+        self.my_list[0] = False
+
+    def update(self) -> None:
+        """ Function to update the label and list"""
         self.title.configure(text=f"playlist: {len(self.playlist)}")
         self.title.grid(row =0, column = 0)
 
@@ -319,28 +324,23 @@ class PlaylistFrame(ctk.CTkFrame):
         self.list.grid(row = 1, column = 0)
 
 class _ScrollingListFrame(ctk.CTkFrame):
-    def __init__(self, master, items: list, **kwargs):
+    """ Helper Frame to display the playlist, in a scrollable fashion"""
+
+    def __init__(self, master, items: list[Track], **kwargs):
         super().__init__(master, **kwargs)
         
-        # Create a canvas and a scrollbar
         self.canvas = ctk.CTkCanvas(self, bg =  "gray22")
         self.scrollbar = ctk.CTkScrollbar(self, orientation="vertical", command=self.canvas.yview)
         self.scrollable_frame = ctk.CTkFrame(self.canvas)  # A frame to hold the list items
         
-        # Configuring the canvas and scrollbar
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
 
-        # Pack the canvas and scrollbar
         self.canvas.grid(row=0, column=0, sticky="nsew")
         self.scrollbar.grid(row=0, column=1, sticky="ns")
 
-        # Create a window in the canvas to contain the scrollable frame
         self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
-
-        # Add items to the scrollable frame
         self.create_item_list(items)
 
-        # Update the scroll region to match the content size
         self.scrollable_frame.bind(
             "<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         )
@@ -355,7 +355,16 @@ class _ScrollingListFrame(ctk.CTkFrame):
 
 
 class App(ctk.CTk):
-    def __init__(self, playlist: PlaylistTree):
+    """
+    App holds the main body of the program, inherits from customtkinter.CTK
+
+    Attributes:
+     - music_frame : Frame to handle user decisions about songs
+     - visualizer : Frame to display the tree
+     - playlist : Frame to display all the songs added so far
+    
+    """
+    def __init__(self, playlist: PlaylistTree, my_list: list[bool]):
         super().__init__()
         self.geometry("1200xx900")
         self.minsize(height=400,width=600)
@@ -369,15 +378,15 @@ class App(ctk.CTk):
         self.music_frame = MusicFrame(self, width=300)
         self.music_frame.grid(row=0,column=0,sticky="ns", padx=5,pady=5)
 
-        self.visualizer = Visualizer(self, graph=playlist)
+        self.visualizer = Visualizer(self, playlist)
         self.visualizer.grid(row=0,column=1,sticky="nsew", padx=5,pady=5)
 
-        self.playlist = PlaylistFrame(self, playlist)
+        self.playlist = PlaylistFrame(self, playlist, my_list)
         self.playlist.grid(row=0, column=2,sticky="ns", padx=5,pady=5)
 
 
 class PlaylistTree():
-    """ Object to handle storing storing songs"""
+    """ Object to handle storing storing songs in a playlist"""
     _root: Optional[str]
     _info: Optional[Track]
     _photo: Optional[PhotoImage]
@@ -404,6 +413,7 @@ class PlaylistTree():
             return size
         
     def __contains__(self, item: str) -> bool:
+        """ Return if item is contained within the tree"""
         if self.is_empty():
             return False
         elif self._root == item:
@@ -415,6 +425,7 @@ class PlaylistTree():
             return False
         
     def remove(self, item: str) -> bool:
+        """ Remove node with item from the tree"""
         if self.is_empty():
             return False
         elif self._root == item:
@@ -431,6 +442,7 @@ class PlaylistTree():
                     return True
                 
     def _delete_root(self) -> None:
+        """ Delete self from the tree, and fix tree as appropriate"""
         if self._subtrees == []:
             self._root = None
             self._info = None
@@ -443,9 +455,10 @@ class PlaylistTree():
             self._subtrees.extend(last_subtree._subtrees)
 
     def add_subtrees(self, subtrees: list[PlaylistTree]) -> None:
+        """ Add subtree to self"""
         self._subtrees.extend(subtrees)
 
-    def add_song_to_parent(self, item: str, info: Track, photo: PhotoImage, parent: str):
+    def add_song_to_parent(self, item: str, info: Track, photo: PhotoImage, parent: str) -> None:
         """ Add Subtree with information to the specified parent Tree"""
         if self._root == parent:
             temp_tree = PlaylistTree(item, info, photo)
@@ -464,51 +477,47 @@ class PlaylistTree():
             result += subtree.__str__(level + 1)
         return result
     
-    def get_all_tracks(self) -> list[str]:
-        """Return a list containing all items (song names/IDs) in the tree."""
+    def get_all_tracks(self) -> list[Track]:
+        """Return a list containing all Track objects in the tree."""
         if self.is_empty():
             return []
-
-        # Start with the root item of the current node
+        
         items = [self._info]
 
-        # Recursively collect items from all subtrees
         for subtree in self._subtrees:
-            items.extend(subtree.get_all_tracks())  # Extend the list with items from subtrees
+            items.extend(subtree.get_all_tracks())
 
         return items
 
-def get_tk_photo(url):
+def get_tk_photo(url: str) -> ctk.CTkImage:
     """Fetch an image from a URL and return a CustomTkinter-compatible CTkImage."""
     response = requests.get(url)
     img_data = BytesIO(response.content)
     image = Image.open(img_data)
 
-    # Resize if needed (width, height)
     ctk_image = ctk.CTkImage(light_image=image, size=(100, 100))
     return ctk_image
 
 tk = TrackList("dataset.csv")
 pending_songs = []
 filter = set()
+app_ongoing = [True]
 
 
-# temp
-first_track = tk.get_track("22UDw8rSfLbUsaAGTXQ4Z8")
+# Initialization, done in terminal
+first_id = input("Enter the starting track id: ")
+first_track = tk.get_track(first_id)
 playlist = PlaylistTree(first_track.track_id, first_track, None)
 temp_list = tk.find_multiple_similar(first_track.track_id, 5)
 for item in temp_list:
     pending_songs.append((first_track, item))
     filter.add(item.track_name)
 
-app = App(playlist)
-# app.mainloop()
+app = App(playlist, app_ongoing)
 app.update()
 
-while True:
+while app_ongoing[0]:
     root_song, curr_song = pending_songs.pop(0)
-
-    # REMEMVER CALL RAEES TO FIX THIS
 
     song_info = get_track_summary(curr_song.artists, curr_song.track_name)
 
@@ -517,11 +526,8 @@ while True:
         root_song, curr_song = pending_songs.pop(0)
         song_info = get_track_summary(curr_song.artists, curr_song.track_name)
 
-    # regex, list of songs that have been
-
     song_photo = get_tk_photo(song_info["artwork"])
 
-    # confirmation = app.music_frame.user_input(curr_song.track_name, song_photo, curr_song.artists)
     confirmation = app.music_frame.user_input(curr_song.track_name, song_photo, curr_song.artists, song_info)
     if confirmation:
         playlist.add_song_to_parent(curr_song.track_id, curr_song, song_photo, root_song.track_id)
@@ -541,7 +547,15 @@ while True:
 
     app.visualizer.display_graph()
 
-    print(len(playlist))
-
     app.update()
+
+    if len(pending_songs) < 3:
+        app_ongoing[0] = False
+
+print("-" * 120)
+print("Final Playlist: ")
+i = 0
+for track in playlist.get_all_tracks():
+    i += 1
+    print(f"{i} - {track.track_name}")
 
